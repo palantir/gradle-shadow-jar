@@ -1,0 +1,4 @@
+type: fix
+fix:
+  description: Shaded dependencies are now accessible in test source sets.
+  links: []

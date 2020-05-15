@@ -1,0 +1,63 @@
+buildscript {
+    repositories {
+        jcenter()
+        maven { url 'https://dl.bintray.com/palantir/releases' }
+        maven { url 'https://plugins.gradle.org/m2/' }
+    }
+
+    dependencies {
+        classpath 'com.palantir.javaformat:gradle-palantir-java-format:1.0.0'
+        classpath 'com.palantir.gradle.consistentversions:gradle-consistent-versions:1.17.3'
+        classpath 'com.netflix.nebula:gradle-info-plugin:7.1.4'
+        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.8.5'
+        classpath 'com.netflix.nebula:nebula-publishing-plugin:17.2.1'
+        classpath 'com.palantir.baseline:gradle-baseline-java:3.11.0'
+        classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
+        classpath 'gradle.plugin.org.inferred:gradle-processors:3.3.0'
+    }
+}
+
+repositories {
+    jcenter()
+    maven { url 'https://dl.bintray.com/palantir/releases' }
+}
+
+apply plugin: 'com.palantir.git-version'
+
+group 'com.palantir.gradle.shadow-jar'
+version System.env.CIRCLE_TAG ?: gitVersion()
+
+apply plugin: 'java-library'
+apply from: "$rootDir/gradle/publish-jar.gradle"
+apply plugin: 'com.palantir.baseline'
+apply plugin: 'java-gradle-plugin'
+apply plugin: 'groovy'
+apply plugin: 'org.inferred.processors'
+apply plugin: 'com.palantir.consistent-versions'
+
+dependencies {
+    implementation localGroovy()
+    implementation gradleApi()
+    implementation 'com.github.jengelman.gradle.plugins:shadow'
+    implementation 'com.google.guava:guava'
+
+    annotationProcessor 'org.immutables:value'
+    compileOnly 'org.immutables:value::annotations'
+
+    testImplementation 'com.netflix.nebula:nebula-test'
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.vintage:junit-vintage-engine', {
+        because 'allows JUnit 3 and JUnit 4 tests to run'
+    }
+}
+
+sourceCompatibility = 1.8
+
+allprojects {
+    apply plugin: 'com.palantir.java-format'
+}
+
+gradlePlugin {
+    // do not add new task to publish to plugins.gradle.org
+    automatedPublishing = false
+}

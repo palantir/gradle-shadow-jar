@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Fix a bug where classes that are excluded from shading still that their
+    references rewritten to use the shaded versions, which would produce broken jars.
+  links: []
