@@ -23,7 +23,7 @@ To apply this plugin, *build.gradle* should look something like:
 +        classpath 'com.palantir.gradle.shadow-jar:gradle-shadow-jar:<version>'
      }
      
-     apply plugin: 'com.palantir.conistent-versions'
+     apply plugin: 'com.palantir.consistent-versions'
 +    apply plugin: 'com.palantir.shadow-jar'
  }
 ```
