@@ -1,7 +1,7 @@
 # Run ./gradlew --write-locks to regenerate this file
 com.github.jengelman.gradle.plugins:shadow:5.2.0 (1 constraints: 09050a36)
 com.google.code.findbugs:jsr305:3.0.2 (2 constraints: 1d0fb186)
-com.google.errorprone:error_prone_annotations:2.3.4 (2 constraints: 250f3987)
+com.google.errorprone:error_prone_annotations:2.4.0 (2 constraints: 220fdb86)
 com.google.guava:failureaccess:1.0.1 (1 constraints: 140ae1b4)
 com.google.guava:guava:28.2-jre (2 constraints: 6b13fe4e)
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
