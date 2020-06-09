@@ -69,8 +69,8 @@ public class ShadowJarPlugin implements Plugin<Project> {
         }
 
         if (!project.getRootProject().getPlugins().hasPlugin("com.palantir.consistent-versions")) {
-            throw new IllegalStateException("You must apply com.palantir.consistent-versions to use the "
-                    + "com.palantir.shadow-jar plugin");
+            throw new IllegalStateException(
+                    "You must apply com.palantir.consistent-versions to use the com.palantir.shadow-jar plugin");
         }
 
         project.getPluginManager().apply(JavaPlugin.class);
