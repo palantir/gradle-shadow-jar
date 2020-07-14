@@ -1,4 +1,4 @@
-com.github.jengelman.gradle.plugins:shadow = 5.2.0
+com.github.jengelman.gradle.plugins:shadow = 6.0.0
 org.immutables:value = 2.8.8
 com.google.guava:guava = 28.2-jre
 
