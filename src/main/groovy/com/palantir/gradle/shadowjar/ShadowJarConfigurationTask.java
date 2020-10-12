@@ -16,7 +16,9 @@
 
 package com.palantir.gradle.shadowjar;
 
+import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
+import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -37,6 +39,7 @@ import org.gradle.api.tasks.TaskAction;
 // Originally taken from https://github.com/johnrengelman/shadow/blob/d4e649d7dd014bfdd9575bfec92d7e74c3cf1aca/
 // src/main/groovy/com/github/jengelman/gradle/plugins/shadow/tasks/ConfigureShadowRelocation.groovy
 public abstract class ShadowJarConfigurationTask extends DefaultTask {
+    private static final String CLASS_SUFFIX = ".class";
     private final Property<ShadowJar> shadowJarProperty =
             getProject().getObjects().property(ShadowJar.class);
 
@@ -72,16 +75,12 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
 
         FileCollection jars = shadowJar.getDependencyFilter().resolve(getConfigurations());
 
-        Set<String> packages = jars.getFiles().stream()
+        Set<String> pathsInJars = jars.getFiles().stream()
                 .flatMap(jar -> {
                     try (JarFile jarFile = new JarFile(jar)) {
                         return Collections.list(jarFile.entries()).stream()
-                                .filter(jarEntry -> jarEntry.getName().endsWith(".class"))
-                                .filter(jarEntry -> jarEntry.getName().contains("/"))
-                                .map(jarEntry -> jarEntry.getName()
-                                        .substring(0, jarEntry.getName().lastIndexOf('/') - 1)
-                                        .replace('/', '.'))
-                                .collect(Collectors.toSet())
+                                .map(path -> path.getName())
+                                .collect(Collectors.toList())
                                 .stream();
                     } catch (IOException e) {
                         throw new RuntimeException("Could not open jar file", e);
@@ -89,6 +88,21 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                 })
                 .collect(Collectors.toSet());
 
-        packages.forEach(pkg -> shadowJar.relocate(pkg, prefix.get() + "." + pkg));
+        JarFilesRelocator relocator = new JarFilesRelocator(pathsInJars, prefix.get() + ".");
+        shadowJar.relocate(relocator);
+    }
+
+    private static final class JarFilesRelocator extends SimpleRelocator {
+        private final Set<String> jarFilePaths;
+
+        private JarFilesRelocator(Set<String> jarFilePaths, String shadedPrefix) {
+            super("", shadedPrefix, ImmutableList.of(), ImmutableList.of());
+            this.jarFilePaths = jarFilePaths;
+        }
+
+        @Override
+        public boolean canRelocatePath(String path) {
+            return jarFilePaths.contains(path) || jarFilePaths.contains(path + CLASS_SUFFIX);
+        }
     }
 }
