@@ -3,7 +3,7 @@ org.immutables:value = 2.8.8
 com.google.guava:guava = 30.0-jre
 
 # Test deps
-com.netflix.nebula:nebula-test = 7.9.3
+com.netflix.nebula:nebula-test = 7.9.4
 
 # conflict resolution
 com.google.code.findbugs:jsr305 = 3.0.2
