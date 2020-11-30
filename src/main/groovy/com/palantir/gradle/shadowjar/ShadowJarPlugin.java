@@ -238,7 +238,9 @@ public class ShadowJarPlugin implements Plugin<Project> {
         shadowJarProvider.configure(shadowJar -> {
             // Enable archive with more than 2^16 files
             shadowJar.setZip64(true);
-            // This seems like a good default for every java project
+
+            // Multiple jars might have an entry in META-INF/services for the same interface, so we merge them.
+            // https://imperceptiblethoughts.com/shadow/configuration/merging/#merging-service-descriptor-files
             shadowJar.mergeServiceFiles();
         });
     }

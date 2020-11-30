@@ -20,13 +20,17 @@ import com.github.jengelman.gradle.plugins.shadow.relocation.RelocateClassContex
 import com.github.jengelman.gradle.plugins.shadow.relocation.RelocatePathContext;
 import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.jar.JarFile;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.artifacts.Configuration;
@@ -38,11 +42,20 @@ import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.TaskAction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 // Originally taken from https://github.com/johnrengelman/shadow/blob/d4e649d7dd014bfdd9575bfec92d7e74c3cf1aca/
 // src/main/groovy/com/github/jengelman/gradle/plugins/shadow/tasks/ConfigureShadowRelocation.groovy
 public abstract class ShadowJarConfigurationTask extends DefaultTask {
+
+    private static final Logger log = LoggerFactory.getLogger(ShadowJarConfigurationTask.class);
+
     private static final String CLASS_SUFFIX = ".class";
+
+    // Multi-Release JAR Files are defined in https://openjdk.java.net/jeps/238
+    private static final Pattern MULTIRELEASE_JAR_PREFIX = Pattern.compile("^META-INF/versions/\\d+/");
+
     private final Property<ShadowJar> shadowJarProperty =
             getProject().getObjects().property(ShadowJar.class);
 
@@ -84,7 +97,9 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                         return Collections.list(jarFile.entries()).stream()
                                 .filter(entry -> !entry.isDirectory())
                                 .map(ZipEntry::getName)
-                                .peek(path -> getLogger().lifecycle("Jar {} contains entry {}", jar.getName(), path))
+                                // .peek(path -> getLogger().lifecycle("Jar {} contains entry {}", jar.getName(), path))
+                                .peek(path -> Preconditions.checkState(
+                                        !path.startsWith("/"), "Unexpected absolute path '%s' in jar '%s'", path, jar))
                                 .collect(Collectors.toList())
                                 .stream();
                     } catch (IOException e) {
@@ -93,35 +108,67 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                 })
                 .collect(Collectors.toSet());
 
-        JarFilesRelocator relocator = new JarFilesRelocator(pathsInJars, prefix.get() + ".");
+        // The Relocator is responsible for fixing the bytecode at callsites *and* filenames of .class files,
+        // so we have to account for things _calling_ these weird multi-release classes.
+        Set<String> multiReleaseStuff = pathsInJars.stream()
+                .flatMap(input -> splitMultiReleasePath(input).stream().skip(1))
+                .collect(Collectors.toSet());
+
+        Set<String> relocatable = Stream.concat(pathsInJars.stream(), multiReleaseStuff.stream())
+                .filter(path -> !path.equals("META-INF/MANIFEST.MF")) // don't relocate this!
+                .collect(Collectors.toSet());
+
+        JarFilesRelocator relocator = new JarFilesRelocator(relocatable, prefix.get() + ".");
         shadowJar.relocate(relocator);
+    }
+
+    /** Returns a pair of 'META-INF/versions/9/' and 'com/foo/whatever.class'. */
+    private static List<String> splitMultiReleasePath(String input) {
+        Matcher matcher = MULTIRELEASE_JAR_PREFIX.matcher(input);
+        if (matcher.find()) {
+            return ImmutableList.of(input.substring(0, matcher.end()), input.substring(matcher.end()));
+        } else {
+            return ImmutableList.of();
+        }
     }
 
     @SuppressWarnings("BanSystemOut")
     private static final class JarFilesRelocator extends SimpleRelocator {
-        private final Set<String> jarFilePaths;
+        private final Set<String> relocatable;
 
-        private JarFilesRelocator(Set<String> jarFilePaths, String shadedPrefix) {
+        private JarFilesRelocator(Set<String> relocatable, String shadedPrefix) {
             super("", shadedPrefix, ImmutableList.of(), ImmutableList.of());
-            this.jarFilePaths = jarFilePaths;
+            this.relocatable = relocatable;
         }
 
         @Override
         public boolean canRelocatePath(String path) {
-            return jarFilePaths.contains(path) || jarFilePaths.contains(path + CLASS_SUFFIX);
+            return relocatable.contains(path + CLASS_SUFFIX) || relocatable.contains(path);
         }
 
         @Override
         public String relocatePath(RelocatePathContext context) {
-            final String output = super.relocatePath(context);
-            System.out.println("relocatePath('" + context.getPath() + "') -> " + output);
+            List<String> maybePair = splitMultiReleasePath(context.getPath());
+            if (!maybePair.isEmpty()) {
+                return relocateMultiReleasePath(maybePair, context);
+            }
+
+            String output = super.relocatePath(context);
+            log.debug("relocatePath('{}') -> {}", context.getPath(), output);
             return output;
+        }
+
+        private String relocateMultiReleasePath(List<String> pair, RelocatePathContext context) {
+            context.setPath(pair.get(1));
+            String out = pair.get(0) + super.relocatePath(context);
+            log.debug("relocateMultiReleasePath('{}') -> {}", context.getPath(), out);
+            return out;
         }
 
         @Override
         public String relocateClass(RelocateClassContext context) {
-            final String output = super.relocateClass(context);
-            System.out.println("relocateClass('" + context.getClassName() + "') -> " + output);
+            String output = super.relocateClass(context);
+            log.debug("relocateClass('{}') -> {}", context.getClassName(), output);
             return output;
         }
     }
