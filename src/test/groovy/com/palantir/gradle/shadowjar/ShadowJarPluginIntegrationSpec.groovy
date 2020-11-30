@@ -172,20 +172,14 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
         writeHelloWorld()
         runTasksAndCheckSuccess('extractForAssertions')
 
-        JarFile shadowJar = shadowJarFile()
-        def jarEntryNames = shadowJar.stream().map({it.name}).collect(Collectors.toSet())
+        def jarEntryNames = shadowJarFile().stream()
+                .map({it.name})
+                .collect(Collectors.toCollection({new LinkedHashSet()}))
 
-        assert jarEntryNames.contains(
-                'shadow/com/palantir/bar_baz_quux/asd_fgh/one/util/streamex/Joining$Accumulator.class')
         assert jarEntryNames.contains(
                 'META-INF/versions/9/shadow/com/palantir/bar_baz_quux/asd_fgh/one/util/streamex/VerSpec.class')
-
-        // this is BAD, just capturing current behaviour (https://github.com/palantir/gradle-shadow-jar/issues/65)
-        assert jarEntryNames.contains('META-INF/versions/9/one/util/streamex/Java9Specific.class')
-
-        // this also seems wonky??
-        file("build/extractForAssertions/shadow/com/palantir/bar_baz_quux/asd_fgh/META-INF/MANIFEST.MF").text ==
-                "Manifest-Version: 1.0\r\n\r\n"
+        assert jarEntryNames.contains(
+                'META-INF/versions/9/shadow/com/palantir/bar_baz_quux/asd_fgh/one/util/streamex/Java9Specific.class')
     }
 
     def 'should shade known logging implementations iff it is placed in shadeTransitively directly'() {
