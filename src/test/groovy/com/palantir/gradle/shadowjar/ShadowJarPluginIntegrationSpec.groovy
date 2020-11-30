@@ -150,6 +150,44 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
         assert !jarEntryNames.contains(relocatedClass('org/slf4j/impl/Log4jLoggerFactory.class'))
     }
 
+    def 'should support multi-release jars (MRJARS, https://www.baeldung.com/java-multi-release-jar)'() {
+        when:
+        buildFile << """
+            repositories {
+                mavenCentral()
+            }
+            
+            dependencies {
+                shadeTransitively 'one.util:streamex:0.7.3'
+            }
+            
+            task extractForAssertions(type: Copy) {
+                dependsOn publishNebulaPublicationToTestRepoRepository
+                from zipTree("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
+                into "\$buildDir/extractForAssertions"
+            }
+        """.stripIndent()
+
+        then:
+        writeHelloWorld()
+        runTasksAndCheckSuccess('extractForAssertions')
+
+        JarFile shadowJar = shadowJarFile()
+        def jarEntryNames = shadowJar.stream().map({it.name}).collect(Collectors.toSet())
+
+        assert jarEntryNames.contains(
+                'shadow/com/palantir/bar_baz_quux/asd_fgh/one/util/streamex/Joining$Accumulator.class')
+        assert jarEntryNames.contains(
+                'META-INF/versions/9/shadow/com/palantir/bar_baz_quux/asd_fgh/one/util/streamex/VerSpec.class')
+
+        // this is BAD, just capturing current behaviour (https://github.com/palantir/gradle-shadow-jar/issues/65)
+        assert jarEntryNames.contains('META-INF/versions/9/one/util/streamex/Java9Specific.class')
+
+        // this also seems wonky??
+        file("build/extractForAssertions/shadow/com/palantir/bar_baz_quux/asd_fgh/META-INF/MANIFEST.MF").text ==
+                "Manifest-Version: 1.0\r\n\r\n"
+    }
+
     def 'should shade known logging implementations iff it is placed in shadeTransitively directly'() {
         when:
         def mavenRepo = generateMavenRepo(
