@@ -16,6 +16,7 @@
 
 package com.palantir.gradle.shadowjar;
 
+import com.github.jengelman.gradle.plugins.shadow.relocation.CacheableRelocator;
 import com.github.jengelman.gradle.plugins.shadow.relocation.RelocateClassContext;
 import com.github.jengelman.gradle.plugins.shadow.relocation.RelocatePathContext;
 import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
@@ -132,7 +133,7 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
         }
     }
 
-    @SuppressWarnings("BanSystemOut")
+    @CacheableRelocator
     private static final class JarFilesRelocator extends SimpleRelocator {
         private final Set<String> relocatable;
 
