@@ -16,6 +16,8 @@
 
 package com.palantir.gradle.shadowjar;
 
+import com.github.jengelman.gradle.plugins.shadow.relocation.RelocateClassContext;
+import com.github.jengelman.gradle.plugins.shadow.relocation.RelocatePathContext;
 import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.collect.ImmutableList;
@@ -25,6 +27,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolvedDependency;
@@ -79,7 +82,9 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                 .flatMap(jar -> {
                     try (JarFile jarFile = new JarFile(jar)) {
                         return Collections.list(jarFile.entries()).stream()
-                                .map(path -> path.getName())
+                                .filter(entry -> !entry.isDirectory())
+                                .map(ZipEntry::getName)
+                                .peek(path -> getLogger().lifecycle("Jar {} contains entry {}", jar.getName(), path))
                                 .collect(Collectors.toList())
                                 .stream();
                     } catch (IOException e) {
@@ -92,6 +97,7 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
         shadowJar.relocate(relocator);
     }
 
+    @SuppressWarnings("BanSystemOut")
     private static final class JarFilesRelocator extends SimpleRelocator {
         private final Set<String> jarFilePaths;
 
@@ -103,6 +109,20 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
         @Override
         public boolean canRelocatePath(String path) {
             return jarFilePaths.contains(path) || jarFilePaths.contains(path + CLASS_SUFFIX);
+        }
+
+        @Override
+        public String relocatePath(RelocatePathContext context) {
+            final String output = super.relocatePath(context);
+            System.out.println("relocatePath('" + context.getPath() + "') -> " + output);
+            return output;
+        }
+
+        @Override
+        public String relocateClass(RelocateClassContext context) {
+            final String output = super.relocateClass(context);
+            System.out.println("relocateClass('" + context.getClassName() + "') -> " + output);
+            return output;
         }
     }
 }
