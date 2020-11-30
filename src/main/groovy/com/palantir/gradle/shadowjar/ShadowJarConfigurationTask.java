@@ -97,7 +97,7 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                         return Collections.list(jarFile.entries()).stream()
                                 .filter(entry -> !entry.isDirectory())
                                 .map(ZipEntry::getName)
-                                // .peek(path -> getLogger().lifecycle("Jar {} contains entry {}", jar.getName(), path))
+                                .peek(path -> log.debug("Jar '{}' contains entry '{}'", jar.getName(), path))
                                 .peek(path -> Preconditions.checkState(
                                         !path.startsWith("/"), "Unexpected absolute path '%s' in jar '%s'", path, jar))
                                 .collect(Collectors.toList())
