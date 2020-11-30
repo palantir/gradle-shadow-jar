@@ -180,6 +180,13 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
                 'META-INF/versions/9/shadow/com/palantir/bar_baz_quux/asd_fgh/one/util/streamex/VerSpec.class')
         assert jarEntryNames.contains(
                 'META-INF/versions/9/shadow/com/palantir/bar_baz_quux/asd_fgh/one/util/streamex/Java9Specific.class')
+        assert !jarEntryNames.contains(
+                'META-INF/versions/9/one/util/streamex/VerSpec.class')
+        assert !jarEntryNames.contains(
+                'META-INF/versions/9/one/util/streamex/Java9Specific.class')
+
+        assert shadowJarFile().getManifest().getMainAttributes().getValue("Multi-Release") == "true" :
+                "The jar manifest must include 'Multi-Release: true'"
     }
 
     def 'should shade known logging implementations iff it is placed in shadeTransitively directly'() {
