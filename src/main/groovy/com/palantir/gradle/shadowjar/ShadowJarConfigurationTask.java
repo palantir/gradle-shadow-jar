@@ -21,9 +21,11 @@ import com.github.jengelman.gradle.plugins.shadow.relocation.RelocateClassContex
 import com.github.jengelman.gradle.plugins.shadow.relocation.RelocatePathContext;
 import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
+import com.github.jengelman.gradle.plugins.shadow.transformers.ManifestAppenderTransformer;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -86,11 +88,11 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
 
     @TaskAction
     public final void run() {
-        ShadowJar shadowJar = shadowJarProperty.get();
+        ShadowJar shadowJarTask = shadowJarProperty.get();
 
-        shadowJar.getDependencyFilter().include(acceptedDependencies.get()::contains);
+        shadowJarTask.getDependencyFilter().include(acceptedDependencies.get()::contains);
 
-        FileCollection jars = shadowJar.getDependencyFilter().resolve(getConfigurations());
+        FileCollection jars = shadowJarTask.getDependencyFilter().resolve(getConfigurations());
 
         Set<String> pathsInJars = jars.getFiles().stream()
                 .flatMap(jar -> {
@@ -119,8 +121,21 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                 .filter(path -> !path.equals("META-INF/MANIFEST.MF")) // don't relocate this!
                 .collect(Collectors.toSet());
 
-        JarFilesRelocator relocator = new JarFilesRelocator(relocatable, prefix.get() + ".");
-        shadowJar.relocate(relocator);
+        shadowJarTask.relocate(new JarFilesRelocator(relocatable, prefix.get() + "."));
+
+        if (!multiReleaseStuff.isEmpty()) {
+            try {
+                shadowJarTask.transform(ManifestAppenderTransformer.class, transformer -> {
+                    // JEP 238 requires this manifest entry
+                    transformer.append("Multi-Release", true);
+                });
+            } catch (InstantiationException
+                    | IllegalAccessException
+                    | NoSuchMethodException
+                    | InvocationTargetException e) {
+                throw new RuntimeException("Unable to construct ManifestAppenderTransformer", e);
+            }
+        }
     }
 
     /** Returns a pair of 'META-INF/versions/9/' and 'com/foo/whatever.class'. */
