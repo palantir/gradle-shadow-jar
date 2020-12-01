@@ -25,7 +25,6 @@ import com.github.jengelman.gradle.plugins.shadow.transformers.ManifestAppenderT
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -129,10 +128,7 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                     // JEP 238 requires this manifest entry
                     transformer.append("Multi-Release", true);
                 });
-            } catch (InstantiationException
-                    | IllegalAccessException
-                    | NoSuchMethodException
-                    | InvocationTargetException e) {
+            } catch (ReflectiveOperationException e) {
                 throw new RuntimeException("Unable to construct ManifestAppenderTransformer", e);
             }
         }
