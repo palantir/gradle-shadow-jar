@@ -354,6 +354,45 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
         assert new File(projectDir, 'build/libs/asd-fgh-2-thin.jar').exists()
     }
 
+    def 'resources work'() {
+        when:
+        buildFile << """
+        dependencies {
+            shadeTransitively project(':subproject')
+        }
+        
+        task runApp(type: JavaExec) {
+            main = 'shadow.com.palantir.bar_baz_quux.asd_fgh.com.palantir.repo.subproject.Foo'
+            classpath = shadowJar.outputs.files
+        }
+        """
+
+        addSubproject('subproject', """
+        apply plugin: 'java'
+        sourceCompatibility = 9
+        """)
+
+        writeJavaSourceFile("""
+        package com.palantir.repo.subproject;
+        import java.io.IOException;
+        import java.net.URL;
+       
+        public final class Foo {
+            public static void main(String... args) throws IOException {
+                System.out.println("Hello, world");
+                URL resource = Foo.class.getResource("/whatever.txt");
+                resource.openStream().transferTo(System.out);
+            }
+        }
+        """.stripIndent(), file('subproject'))
+
+        addResource('subproject/src/main/resources', 'whatever.txt',
+                "1. RESOURCE LINE ONE\n2. RESOURCE LINE TWO\n")
+
+        then:
+        ExecutionResult success = runTasksAndCheckSuccess('runApp', '-qs')
+    }
+
     @CompileStatic
     private Set<String> jarEntryNames() {
         JarFile shadowJar = shadowJarFile()
