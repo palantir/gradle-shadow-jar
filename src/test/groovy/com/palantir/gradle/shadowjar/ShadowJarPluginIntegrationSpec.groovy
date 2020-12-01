@@ -379,8 +379,9 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
        
         public final class Foo {
             public static void main(String... args) throws IOException {
-                System.out.println("Hello, world");
-                URL resource = Foo.class.getResource("/whatever.txt");
+                String path = "/whatever.txt";
+                System.out.println("Attempting to load resource: " + path);
+                URL resource = Foo.class.getResource(path);
                 resource.openStream().transferTo(System.out);
             }
         }
@@ -391,6 +392,11 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
 
         then:
         ExecutionResult success = runTasksAndCheckSuccess('runApp', '-qs')
+        success.standardOutput.contains("""\
+        Attempting to load resource: /shadow/com/palantir/bar_baz_quux/asd_fgh/whatever.txt
+        1. RESOURCE LINE ONE
+        2. RESOURCE LINE TWO
+        """.stripIndent())
     }
 
     @CompileStatic

@@ -155,11 +155,21 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
 
         @Override
         public boolean canRelocatePath(String path) {
+            // Allow for annoying option of an extra / on the front of a path.
+            // See MSHADE-119 comes from getClass().getResource("/a/b/c.properties").
+            if (path.codePointAt(0) == '/') {
+                return canRelocatePath(path.substring(1));
+            }
+
             return relocatable.contains(path + CLASS_SUFFIX) || relocatable.contains(path);
         }
 
         @Override
         public String relocatePath(RelocatePathContext context) {
+            if (context.getPath().startsWith("/")) {
+                return relocateLeadingSlash(context);
+            }
+
             List<String> maybePair = splitMultiReleasePath(context.getPath());
             if (!maybePair.isEmpty()) {
                 return relocateMultiReleasePath(maybePair, context);
@@ -168,6 +178,13 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
             String output = super.relocatePath(context);
             log.debug("relocatePath('{}') -> {}", context.getPath(), output);
             return output;
+        }
+
+        private String relocateLeadingSlash(RelocatePathContext context) {
+            context.setPath(context.getPath().substring(1));
+            String out = '/' + super.relocatePath(context);
+            log.debug("relocateLeadingSlash('{}') -> {}", context.getPath(), out);
+            return out;
         }
 
         private String relocateMultiReleasePath(List<String> pair, RelocatePathContext context) {
