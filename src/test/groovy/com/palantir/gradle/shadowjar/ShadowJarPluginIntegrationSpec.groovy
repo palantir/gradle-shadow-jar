@@ -150,6 +150,48 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
         assert !jarEntryNames.contains(relocatedClass('org/slf4j/impl/Log4jLoggerFactory.class'))
     }
 
+    def 'should support multi-release jars'() {
+        // https://www.baeldung.com/java-multi-release-jar
+
+        when:
+        buildFile << """
+            repositories {
+                mavenCentral()
+            }
+            
+            dependencies {
+                shadeTransitively 'one.util:streamex:0.7.3'
+            }
+            
+            task extractForAssertions(type: Copy) {
+                dependsOn publishNebulaPublicationToTestRepoRepository
+                from zipTree("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
+                into "\$buildDir/extractForAssertions"
+            }
+        """.stripIndent()
+
+        then:
+        writeHelloWorld()
+        runTasksAndCheckSuccess('extractForAssertions')
+
+        def jarEntryNames = shadowJarFile().stream()
+                .map({it.name})
+                .collect(Collectors.toCollection({new LinkedHashSet()}))
+
+        assert jarEntryNames.contains(
+                'META-INF/versions/9/shadow/com/palantir/bar_baz_quux/asd_fgh/one/util/streamex/VerSpec.class')
+        assert jarEntryNames.contains(
+                'META-INF/versions/9/shadow/com/palantir/bar_baz_quux/asd_fgh/one/util/streamex/Java9Specific.class')
+        assert !jarEntryNames.contains(
+                'META-INF/versions/9/one/util/streamex/VerSpec.class')
+        assert !jarEntryNames.contains(
+                'META-INF/versions/9/one/util/streamex/Java9Specific.class')
+
+        assert shadowJarFile().isMultiRelease() ?:
+                "The jar manifest must include 'Multi-Release: true', but was '" +
+                        file("build/extractForAssertions/META-INF/MANIFEST.MF").text + "'"
+    }
+
     def 'should shade known logging implementations iff it is placed in shadeTransitively directly'() {
         when:
         def mavenRepo = generateMavenRepo(
@@ -320,8 +362,7 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
 
     @CompileStatic
     private JarFile shadowJarFile() {
-        return new JarFile(
-                new File(projectDir, "${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar"))
+        return new JarFile(file("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar"))
     }
 
     @CompileStatic
