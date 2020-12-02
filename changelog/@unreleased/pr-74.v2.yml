@@ -1,0 +1,8 @@
+type: fix
+fix:
+  description: '`shadowJar` now depends on the `jar` task in order to trigger tasks
+    like `configureProductDependencies` from `com.palantir.sls-recommended-dependencies`
+    which modify the `jar` manifest, so that these `manifest` changes are inherited
+    by default in `shadowJar`.'
+  links:
+  - https://github.com/palantir/gradle-shadow-jar/pull/74

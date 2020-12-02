@@ -354,6 +354,29 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
         assert new File(projectDir, 'build/libs/asd-fgh-2-thin.jar').exists()
     }
 
+    def 'shadowJar should contain manifest entries added to thin jar in tasks'() {
+        buildFile << '''
+            dependencies {
+                shadeTransitively 'org.apiguardian:apiguardian-api:1.1.0'
+            }
+            
+            // This replicates what the 'com.palantir.sls-recommended-dependencies' plugin does
+            task addManifestItem {
+                doFirst {
+                    jar.manifest.attributes('Foo': 'Bar')
+                }
+            }
+            
+            jar.dependsOn addManifestItem
+        '''
+
+        when:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        then:
+        shadowJarFile().manifest.mainAttributes.getValue('Foo') == 'Bar'
+    }
+
     @CompileStatic
     private Set<String> jarEntryNames() {
         JarFile shadowJar = shadowJarFile()

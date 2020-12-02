@@ -86,6 +86,8 @@ public class ShadowJarPlugin implements Plugin<Project> {
         configureShadowJarTaskWithGoodDefaults(shadowJarProvider);
 
         ensureShadowJarIsOnlyArtifactOnJavaConfigurations(project, shadowJarProvider);
+
+        dependOnJarTaskInOrderToTriggerTasksAddingManifestAttributes(project, shadowJarProvider);
     }
 
     private void setupShadowJarToShadeTheCorrectDependencies(
@@ -245,7 +247,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
         });
     }
 
-    private void ensureShadowJarIsOnlyArtifactOnJavaConfigurations(
+    private static void ensureShadowJarIsOnlyArtifactOnJavaConfigurations(
             Project project, TaskProvider<ShadowJar> shadowJarProvider) {
 
         Stream.of(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME, JavaPlugin.RUNTIME_ELEMENTS_CONFIGURATION_NAME)
@@ -254,5 +256,11 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     conf.getOutgoing().getArtifacts().clear();
                     conf.getOutgoing().artifact(shadowJarProvider);
                 }));
+    }
+
+    private static void dependOnJarTaskInOrderToTriggerTasksAddingManifestAttributes(
+            Project project, TaskProvider<ShadowJar> shadowJarProvider) {
+        shadowJarProvider.configure(shadowJar ->
+                shadowJar.dependsOn(project.getTasks().withType(Jar.class).named("jar")));
     }
 }
