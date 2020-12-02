@@ -360,6 +360,7 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
                 shadeTransitively 'org.apiguardian:apiguardian-api:1.1.0'
             }
             
+            // This replicates what the 'com.palantir.sls-recommended-dependencies' plugin does
             task addManifestItem {
                 doFirst {
                     jar.manifest.attributes('Foo': 'Bar')
@@ -373,7 +374,7 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
 
         then:
-        shadowJarFile().manifest.mainAttributes.get('Foo') == 'Bar'
+        shadowJarFile().manifest.mainAttributes.getValue('Foo') == 'Bar'
     }
 
     @CompileStatic
