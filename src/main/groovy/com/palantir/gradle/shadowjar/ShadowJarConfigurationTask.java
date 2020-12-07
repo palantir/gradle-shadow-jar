@@ -21,7 +21,6 @@ import com.github.jengelman.gradle.plugins.shadow.relocation.RelocateClassContex
 import com.github.jengelman.gradle.plugins.shadow.relocation.RelocatePathContext;
 import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
-import com.github.jengelman.gradle.plugins.shadow.transformers.ManifestAppenderTransformer;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.io.IOException;
@@ -124,7 +123,7 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
 
         if (!multiReleaseStuff.isEmpty()) {
             try {
-                shadowJarTask.transform(ManifestAppenderTransformer.class, transformer -> {
+                shadowJarTask.transform(ComposableManifestAppenderTransformer.class, transformer -> {
                     // JEP 238 requires this manifest entry
                     transformer.append("Multi-Release", true);
                 });
