@@ -1,0 +1,7 @@
+type: fix
+fix:
+  description: Previously, projects that shaded multi-release jars may have had an
+    empty line in the middle of their manifest, which would prevent the manifest from
+    being parsed. This has been removed.
+  links:
+  - https://github.com/palantir/gradle-shadow-jar/pull/77

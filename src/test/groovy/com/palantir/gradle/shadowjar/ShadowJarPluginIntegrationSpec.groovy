@@ -190,6 +190,9 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
         assert shadowJarFile().isMultiRelease() ?:
                 "The jar manifest must include 'Multi-Release: true', but was '" +
                         file("build/extractForAssertions/META-INF/MANIFEST.MF").text + "'"
+
+        // What is of interest here is that this does not throw an exception
+        shadowJarFile().getManifest()
     }
 
     def 'should shade known logging implementations iff it is placed in shadeTransitively directly'() {
