@@ -39,7 +39,7 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
             buildscript {
                 repositories {
                     jcenter()
-                    maven { url 'https://dl.bintray.com/palantir/releases/' }
+                    mavenCentral()
                     maven { url 'https://plugins.gradle.org/m2/' }
                 }
             
