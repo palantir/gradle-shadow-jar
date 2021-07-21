@@ -1,9 +1,10 @@
-com.github.jengelman.gradle.plugins:shadow = 6.1.0
+gradle.plugin.com.github.jengelman.gradle.plugins:shadow = 7.0.0
 org.immutables:value = 2.8.8
 com.google.guava:guava = 30.1-jre
 
 # Test deps
-com.netflix.nebula:nebula-test = 7.10.1
+com.netflix.nebula:nebula-test = 10.0.0
+commons-io:commons-io = 2.6
 
 # conflict resolution
 com.google.code.findbugs:jsr305 = 3.0.2

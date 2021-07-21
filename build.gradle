@@ -2,14 +2,13 @@ buildscript {
     repositories {
         gradlePluginPortal()
         mavenCentral()
-        jcenter()
     }
 
     dependencies {
         classpath 'com.palantir.gradle.externalpublish:gradle-external-publish-plugin:1.2.1'
         classpath 'com.palantir.javaformat:gradle-palantir-java-format:2.2.0'
         classpath 'com.palantir.gradle.consistentversions:gradle-consistent-versions:2.0.0'
-        classpath 'com.palantir.baseline:gradle-baseline-java:3.95.0'
+        classpath 'com.palantir.baseline:gradle-baseline-java:4.0.0'
         classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
         classpath 'gradle.plugin.org.inferred:gradle-processors:3.3.0'
     }
@@ -17,7 +16,7 @@ buildscript {
 
 repositories {
     mavenCentral()
-    jcenter()
+    gradlePluginPortal()
 }
 
 apply plugin: 'com.palantir.external-publish'
@@ -37,13 +36,14 @@ apply plugin: 'com.palantir.consistent-versions'
 dependencies {
     implementation localGroovy()
     implementation gradleApi()
-    implementation 'com.github.jengelman.gradle.plugins:shadow'
+    implementation 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow'
     implementation 'com.google.guava:guava'
 
     annotationProcessor 'org.immutables:value'
     compileOnly 'org.immutables:value::annotations'
 
     testImplementation 'com.netflix.nebula:nebula-test'
+    testImplementation 'commons-io:commons-io'
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.vintage:junit-vintage-engine', {
         because 'allows JUnit 3 and JUnit 4 tests to run'
