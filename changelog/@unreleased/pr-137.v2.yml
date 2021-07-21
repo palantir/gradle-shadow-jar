@@ -1,0 +1,6 @@
+type: break
+break:
+  description: Fix Gradle 7 compatibility. Increase minimum required Gradle version
+    to 7.0.
+  links:
+  - https://github.com/palantir/gradle-shadow-jar/pull/137
