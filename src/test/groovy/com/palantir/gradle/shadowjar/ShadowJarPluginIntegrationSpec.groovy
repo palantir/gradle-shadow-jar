@@ -38,19 +38,18 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
         buildFile << """
             buildscript {
                 repositories {
-                    jcenter()
                     mavenCentral()
                     maven { url 'https://plugins.gradle.org/m2/' }
                 }
             
                 dependencies {
-                    classpath 'com.palantir.gradle.consistentversions:gradle-consistent-versions:1.17.3'
+                    classpath 'com.palantir.gradle.consistentversions:gradle-consistent-versions:2.0.0'
                     classpath 'com.netflix.nebula:nebula-publishing-plugin:17.2.1'
                 }
             }
 
             plugins {
-                id 'org.unbroken-dome.test-sets' version '2.2.1' apply false
+                id 'org.unbroken-dome.test-sets' version '4.0.0' apply false
             }
 
             apply plugin: 'com.palantir.consistent-versions'
@@ -400,10 +399,11 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
     }
 
     private String dependenciesInPom() {
-        def pomXml = new XmlParser().parse(
-                new File(projectDir, "${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.pom"))
+        def pomFile = new File(projectDir, "${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.pom")
+        def pomXml = new groovy.xml.XmlParser().parse(pomFile)
         // GCV publishes the shaded constraints in dependencyManagement - this should be fine
-        def dependenciesText = pomXml.dependencies.collect {XmlUtil.serialize(it)}.join('\n')
+        // Explicitly cast to "Node" before serializing to avoid errors due to Groovy choosing the wrong method override
+        def dependenciesText = pomXml.dependencies.collect {node -> XmlUtil.serialize((Node) node)}.join('\n')
         dependenciesText
     }
 

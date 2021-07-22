@@ -17,15 +17,16 @@
 // Change: Different package, added imports
 package com.palantir.gradle.shadowjar
 
+import static java.nio.charset.StandardCharsets.UTF_8
+import static java.util.jar.JarFile.MANIFEST_NAME
+
 import com.github.jengelman.gradle.plugins.shadow.transformers.Transformer
 import com.github.jengelman.gradle.plugins.shadow.transformers.TransformerContext
-import shadow.org.apache.tools.zip.ZipOutputStream
-import shadow.org.apache.tools.zip.ZipEntry
-import shadow.org.codehaus.plexus.util.IOUtil
 import org.gradle.api.file.FileTreeElement
-
-import static java.nio.charset.StandardCharsets.*
-import static java.util.jar.JarFile.*
+import org.gradle.api.tasks.Input
+import shadow.org.apache.tools.zip.ZipEntry
+import shadow.org.apache.tools.zip.ZipOutputStream
+import shadow.org.codehaus.plexus.util.IOUtil
 
 // Originally taken from https://github.com/johnrengelman/shadow/blob/6.1.0/src/main/groovy/com/github/jengelman/
 // gradle/plugins/shadow/transformers/ManifestAppenderTransformer.groovy
@@ -36,6 +37,7 @@ class ComposableManifestAppenderTransformer implements Transformer {
     private byte[] manifestContents = []
     private final List<Tuple2<String, ? extends Comparable<?>>> attributes = []
 
+    @Input
     List<Tuple2<String, ? extends Comparable<?>>> getAttributes() { attributes }
 
     ComposableManifestAppenderTransformer append(String name, Comparable<?> value) {
