@@ -15,8 +15,8 @@ buildscript {
 }
 
 repositories {
-    mavenCentral()
     gradlePluginPortal()
+    mavenCentral()
 }
 
 apply plugin: 'com.palantir.external-publish'
