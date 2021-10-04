@@ -47,6 +47,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
             groupOf("commons-logging"),
             groupOf("log4j"),
             groupOf("org.apache.logging.log4j"),
+            groupOf("com.palantir.logsafe.logger"),
             groupOf("org.springframework").and(artifactOf("spring-jcl")));
 
     private static Predicate<ResolvedDependency> groupOf(String group) {
