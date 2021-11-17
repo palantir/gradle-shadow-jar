@@ -168,14 +168,17 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     .build();
         });
 
-        rejectedFromShading
-                .getDependencies()
-                .addAllLater(project.getObjects().setProperty(Dependency.class).value(project.provider(() -> {
-                    return shadowingCalculation.get().rejectedShadedModules().stream()
-                            .map(this::depToString)
-                            .map(project.getDependencies()::create)
-                            .collect(Collectors.toSet());
-                })));
+        rejectedFromShading.getIncoming().beforeResolve(_ignored -> {
+            rejectedFromShading
+                    .getDependencies()
+                    .addAllLater(
+                            project.getObjects().setProperty(Dependency.class).value(project.provider(() -> {
+                                return shadowingCalculation.get().rejectedShadedModules().stream()
+                                        .map(this::depToString)
+                                        .map(project.getDependencies()::create)
+                                        .collect(Collectors.toSet());
+                            })));
+        });
 
         TaskProvider<ShadowJarConfigurationTask> shadowJarConfigurationTask = project.getTasks()
                 .register("relocateShadowJar", ShadowJarConfigurationTask.class, relocateTask -> {
