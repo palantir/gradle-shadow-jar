@@ -34,7 +34,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolvedDependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.provider.Property;
@@ -75,7 +74,7 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
     }
 
     @Classpath
-    public final List<Configuration> getConfigurations() {
+    public final List<FileCollection> getConfigurations() {
         return shadowJarProperty.get().getConfigurations();
     }
 
