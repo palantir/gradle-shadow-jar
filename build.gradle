@@ -36,7 +36,7 @@ apply plugin: 'com.palantir.consistent-versions'
 dependencies {
     implementation localGroovy()
     implementation gradleApi()
-    implementation 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow'
+    implementation 'gradle.plugin.com.github.johnrengelman:shadow'
     implementation 'com.google.guava:guava'
 
     annotationProcessor 'org.immutables:value'
