@@ -1,5 +1,5 @@
 gradle.plugin.com.github.johnrengelman:shadow = 7.1.2
-org.immutables:value = 2.8.8
+org.immutables:value = 2.9.0
 com.google.guava:guava = 31.0.1-jre
 org.apache.logging.log4j:* = 2.17.1
 
