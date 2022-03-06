@@ -1,7 +1,7 @@
 gradle.plugin.com.github.johnrengelman:shadow = 7.1.2
 org.immutables:value = 2.8.8
-com.google.guava:guava = 31.0.1-jre
-org.apache.logging.log4j:* = 2.17.1
+com.google.guava:guava = 31.1-jre
+org.apache.logging.log4j:* = 2.17.2
 
 # Test deps
 com.netflix.nebula:nebula-test = 10.0.0
