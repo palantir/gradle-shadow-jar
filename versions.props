@@ -1,3 +1,4 @@
+com.fasterxml.jackson.core:jackson-databind = 2.13.2.1
 gradle.plugin.com.github.johnrengelman:shadow = 7.1.2
 org.immutables:value = 2.8.8
 com.google.guava:guava = 31.1-jre
@@ -10,6 +11,6 @@ commons-io:commons-io = 2.11.0
 # conflict resolution
 com.google.code.findbugs:jsr305 = 3.0.2
 com.google.errorprone:error_prone_annotations = 2.11.0
-org.checkerframework:checker-qual = 2.5.0
+org.checkerframework:checker-qual = 3.21.4
 org.junit.jupiter:* = 5.8.2
 org.junit.vintage:* = 5.8.2
