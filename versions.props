@@ -2,7 +2,7 @@ com.fasterxml.jackson.core:jackson-databind = 2.13.2.1
 gradle.plugin.com.github.johnrengelman:shadow = 7.1.2
 org.immutables:value = 2.8.8
 com.google.guava:guava = 31.1-jre
-org.apache.logging.log4j:* = 2.18.0
+org.apache.logging.log4j:* = 2.19.0
 
 # Test deps
 com.netflix.nebula:nebula-test = 10.0.0
