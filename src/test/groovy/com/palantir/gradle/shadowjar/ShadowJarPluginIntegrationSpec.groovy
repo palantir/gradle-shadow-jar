@@ -154,7 +154,7 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
         def mavenRepo = generateMavenRepo(
                 'telemetry-dep:telemetry:1 -> ' +
                         'com.palantir.tracing:tracing:6.17.0 ' +
-                        '| com.palantir.safe-logging:logger:3.2.0 ' +
+                        '| com.palantir.safe-logging:safe-logging:3.2.0 ' +
                         '| com.palantir.tritium:tritium-registry:0.63.0'
         )
 
