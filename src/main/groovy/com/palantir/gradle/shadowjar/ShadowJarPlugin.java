@@ -48,6 +48,8 @@ public class ShadowJarPlugin implements Plugin<Project> {
             groupOf("log4j"),
             groupOf("org.apache.logging.log4j"),
             groupOf("com.palantir.logsafe.logger"),
+            groupOf("com.palantir.tracing"),
+            groupOf("com.palantir.tritium"),
             groupOf("org.springframework").and(artifactOf("spring-jcl")));
 
     private static Predicate<ResolvedDependency> groupOf(String group) {

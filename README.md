@@ -64,3 +64,6 @@ appear in the maven POM.
 
 We explicitly ban logging libraries from shading, as they can cause problems when shaded, and will show up as real
 dependencies in your POM, even if they were brought in as transitives through `shadeTransitively`.
+
+We also ban tracing and metric libraries, as they might rely on static variables (see `com.palantir.tracing.Tracer`
+and `com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry`).
