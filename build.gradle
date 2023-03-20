@@ -53,6 +53,11 @@ dependencies {
     testRuntimeOnly 'org.junit.vintage:junit-vintage-engine', {
         because 'allows JUnit 3 and JUnit 4 tests to run'
     }
+
+    // only to check lib is banned
+    testImplementation 'com.palantir.tracing:tracing'
+    testImplementation 'com.palantir.safe-logging:safe-logging'
+    testImplementation 'com.palantir.tritium:tritium-registry'
 }
 
 

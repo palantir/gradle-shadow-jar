@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: No longer shade tracing or metric classes
+  links:
+  - https://github.com/palantir/gradle-shadow-jar/pull/332

@@ -149,6 +149,42 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
         assert !jarEntryNames.contains(relocatedClass('org/slf4j/impl/Log4jLoggerFactory.class'))
     }
 
+    def 'should not shade tritium, tracing or safe-logging'() {
+        when:
+        def mavenRepo = generateMavenRepo(
+                'telemetry-dep:telemetry:1 -> ' +
+                        'com.palantir.tracing:tracing:6.17.0 ' +
+                        '| com.palantir.safe-logging:safe-logging:3.2.0 ' +
+                        '| com.palantir.tritium:tritium-registry:0.63.0'
+        )
+
+        buildFile << """
+            repositories {
+                maven { url "file:///${mavenRepo.getAbsolutePath()}" }
+            }
+
+            dependencies {
+                shadeTransitively 'telemetry-dep:telemetry:1'
+            }
+        """.stripIndent()
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        String dependenciesText = dependenciesInPom()
+
+        assert dependenciesText.contains('<artifactId>tritium-registry</artifactId>')
+        assert dependenciesText.contains('<artifactId>tracing</artifactId>')
+        assert !dependenciesText.contains('<groupId>safe-logging</groupId>') // tracing contains safe-logging
+
+        def jarEntryNames = jarEntryNames()
+
+        assert !jarEntryNames.contains(relocatedClass('com/palantir/tracing/Tracer.class'))
+        assert !jarEntryNames.contains(relocatedClass(
+                'com/palantir/tritium/metrics/registry/DefaultTaggedMetricRegistry.class'))
+        assert !jarEntryNames.contains(relocatedClass('com/palantir/logsafe/SafeArg.class'))
+    }
+
     def 'should support multi-release jars'() {
         // https://www.baeldung.com/java-multi-release-jar
 
@@ -174,8 +210,8 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
         runTasksAndCheckSuccess('extractForAssertions')
 
         def jarEntryNames = shadowJarFile().stream()
-                .map({it.name})
-                .collect(Collectors.toCollection({new LinkedHashSet()}))
+                .map({ it.name })
+                .collect(Collectors.toCollection({ new LinkedHashSet() }))
 
         assert jarEntryNames.contains(
                 'META-INF/versions/9/shadow/com/palantir/bar_baz_quux/asd_fgh/one/util/streamex/VerSpec.class')
@@ -382,7 +418,7 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
     @CompileStatic
     private Set<String> jarEntryNames() {
         JarFile shadowJar = shadowJarFile()
-        return shadowJar.stream().map({it.name}).collect(Collectors.toSet())
+        return shadowJar.stream().map({ it.name }).collect(Collectors.toSet())
     }
 
     @CompileStatic
@@ -403,7 +439,7 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
         def pomXml = new groovy.xml.XmlParser().parse(pomFile)
         // GCV publishes the shaded constraints in dependencyManagement - this should be fine
         // Explicitly cast to "Node" before serializing to avoid errors due to Groovy choosing the wrong method override
-        def dependenciesText = pomXml.dependencies.collect {node -> XmlUtil.serialize((Node) node)}.join('\n')
+        def dependenciesText = pomXml.dependencies.collect { node -> XmlUtil.serialize((Node) node) }.join('\n')
         dependenciesText
     }
 
