@@ -41,7 +41,7 @@ apply plugin: 'com.palantir.jdks.latest'
 dependencies {
     implementation localGroovy()
     implementation gradleApi()
-    implementation 'gradle.plugin.com.github.johnrengelman:shadow'
+    implementation 'com.palantir.fork.com.github.johnrengelman:shadow'
     implementation 'com.google.guava:guava'
 
     annotationProcessor 'org.immutables:value'
