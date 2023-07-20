@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: ServiceLoader service providers within shaded modules work as expected
+  links:
+  - https://github.com/palantir/gradle-shadow-jar/pull/362

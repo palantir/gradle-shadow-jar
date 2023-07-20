@@ -230,6 +230,83 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
         shadowJarFile().getManifest()
     }
 
+    def 'should support service-loader providers'() {
+        when:
+        buildFile << """
+            repositories {
+                mavenCentral()
+            }
+            
+            dependencies {
+                // The service is not relocated, only the provider, which still must
+                // provide ws.rs-api 'jakarta.ws.rs.ext.RuntimeDelegate'
+                implementation 'jakarta.ws.rs:jakarta.ws.rs-api:3.1.0'
+                shadeTransitively 'org.glassfish.jersey.core:jersey-common:3.1.1'
+            }
+            
+            task extractForAssertions(type: Copy) {
+                dependsOn publishNebulaPublicationToTestRepoRepository
+                from zipTree("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
+                into "\$buildDir/extractForAssertions"
+            }
+        """.stripIndent()
+
+        then:
+        writeHelloWorld()
+        runTasksAndCheckSuccess('extractForAssertions')
+
+        def jarEntryNames = shadowJarFile().stream()
+                .map({ it.name })
+                .collect(Collectors.toCollection({ new LinkedHashSet() }))
+
+        def service = 'META-INF/services/jakarta.ws.rs.ext.RuntimeDelegate'
+        assert jarEntryNames.contains(service)
+        assert new File("${buildFile.parentFile.absolutePath}/build/extractForAssertions/${service}").text
+                == 'shadow.com.palantir.bar_baz_quux.asd_fgh.org.glassfish.jersey.internal.RuntimeDelegateImpl'
+        assert jarEntryNames.contains(
+                'shadow/com/palantir/bar_baz_quux/asd_fgh/org/glassfish/jersey/internal/RuntimeDelegateImpl.class')
+        assert !jarEntryNames.contains(
+                'shadow/com/palantir/bar_baz_quux/asd_fgh/jakarta/ws/rs/ext/RuntimeDelegate.class')
+    }
+
+    def 'should support service-loader providers for relocated services'() {
+        when:
+        buildFile << """
+            repositories {
+                mavenCentral()
+            }
+            
+            dependencies {
+                // The service and provider are both relocated
+                shadeTransitively 'jakarta.ws.rs:jakarta.ws.rs-api:3.1.0'
+                shadeTransitively 'org.glassfish.jersey.core:jersey-common:3.1.1'
+            }
+            
+            task extractForAssertions(type: Copy) {
+                dependsOn publishNebulaPublicationToTestRepoRepository
+                from zipTree("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
+                into "\$buildDir/extractForAssertions"
+            }
+        """.stripIndent()
+
+        then:
+        writeHelloWorld()
+        runTasksAndCheckSuccess('extractForAssertions')
+
+        def jarEntryNames = shadowJarFile().stream()
+                .map({ it.name })
+                .collect(Collectors.toCollection({ new LinkedHashSet() }))
+
+        def service = 'META-INF/services/shadow.com.palantir.bar_baz_quux.asd_fgh.jakarta.ws.rs.ext.RuntimeDelegate'
+        assert !jarEntryNames.contains('shadow.com.palantir.bar_baz_quux.asd_fgh.META-INF/services/jakarta.ws.rs.ext.RuntimeDelegate')
+        assert jarEntryNames.contains(
+                'META-INF/services/shadow.com.palantir.bar_baz_quux.asd_fgh.jakarta.ws.rs.ext.RuntimeDelegate')
+        assert new File("${buildFile.parentFile.absolutePath}/build/extractForAssertions/${service}").text
+                == 'shadow.com.palantir.bar_baz_quux.asd_fgh.org.glassfish.jersey.internal.RuntimeDelegateImpl'
+        assert jarEntryNames.contains(
+                'shadow/com/palantir/bar_baz_quux/asd_fgh/org/glassfish/jersey/internal/RuntimeDelegateImpl.class')
+    }
+
     def 'should shade known logging implementations iff it is placed in shadeTransitively directly'() {
         when:
         def mavenRepo = generateMavenRepo(

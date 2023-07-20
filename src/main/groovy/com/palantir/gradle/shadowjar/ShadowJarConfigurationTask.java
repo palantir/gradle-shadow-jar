@@ -55,6 +55,7 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
 
     // Multi-Release JAR Files are defined in https://openjdk.java.net/jeps/238
     private static final Pattern MULTIRELEASE_JAR_PREFIX = Pattern.compile("^META-INF/versions/\\d+/");
+    private static final String SERVICE_PROVIDER_PREFIX = "META-INF/services/";
 
     private final Property<ShadowJar> shadowJarProperty =
             getProject().getObjects().property(ShadowJar.class);
@@ -116,6 +117,7 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
 
         Set<String> relocatable = Stream.concat(pathsInJars.stream(), multiReleaseStuff.stream())
                 .filter(path -> !path.equals("META-INF/MANIFEST.MF")) // don't relocate this!
+                .filter(path -> !path.startsWith(SERVICE_PROVIDER_PREFIX)) // service providers remain in the root
                 .collect(Collectors.toSet());
 
         shadowJarTask.relocate(new JarFilesRelocator(relocatable, prefix.get() + "."));
@@ -177,7 +179,23 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
 
         @Override
         public String relocateClass(RelocateClassContext context) {
-            String output = super.relocateClass(context);
+            String className = context.getClassName();
+            String output;
+            // Work around a poor interaction between ServiceFileTransformer and our
+            // prefix configuration which otherwise results in prefixes being added
+            // prior to 'META-INF', breaking service loading. The default SimpleRelocator
+            // replaces the first instance of the expected prefix with the new prefix,
+            // however this is problematic when the expected prefix is an empty string.
+            if (className != null && className.startsWith(SERVICE_PROVIDER_PREFIX)) {
+                String targetClassName = className.substring(SERVICE_PROVIDER_PREFIX.length());
+                RelocateClassContext serviceContext = RelocateClassContext.builder()
+                        .className(targetClassName)
+                        .stats(context.getStats())
+                        .build();
+                output = SERVICE_PROVIDER_PREFIX + super.relocateClass(serviceContext);
+            } else {
+                output = super.relocateClass(context);
+            }
             log.debug("relocateClass('{}') -> {}", context.getClassName(), output);
             return output;
         }
