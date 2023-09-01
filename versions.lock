@@ -6,7 +6,7 @@ com.google.guava:guava:32.1.2-jre (3 constraints: b3261aa2)
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 com.google.j2objc:j2objc-annotations:2.8 (1 constraints: be09f5a0)
 com.palantir.fork.com.github.johnrengelman:shadow:7.1.2.1 (1 constraints: 6b05b840)
-org.checkerframework:checker-qual:3.37.0 (2 constraints: 890f67a2)
+org.checkerframework:checker-qual:3.38.0 (2 constraints: 8a0f8aa2)
 org.codehaus.groovy:groovy-backports-compat23:3.0.8 (1 constraints: bf140d8c)
 org.immutables:value:2.9.3 (1 constraints: 10051336)
 
