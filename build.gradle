@@ -43,6 +43,8 @@ dependencies {
     implementation gradleApi()
     implementation 'com.github.johnrengelman:shadow'
     implementation 'com.google.guava:guava'
+    implementation 'org.apache.ant:ant'
+    implementation 'org.codehaus.plexus:plexus-utils'
 
     annotationProcessor 'org.immutables:value'
     compileOnly 'org.immutables:value::annotations'
