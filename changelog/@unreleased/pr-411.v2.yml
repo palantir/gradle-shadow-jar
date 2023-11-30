@@ -1,0 +1,5 @@
+type: break
+break:
+  description: Support Gradle 8. Drop support for Gradle 7.
+  links:
+  - https://github.com/palantir/gradle-shadow-jar/pull/411
