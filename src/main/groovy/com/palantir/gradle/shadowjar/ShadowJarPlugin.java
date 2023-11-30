@@ -119,6 +119,17 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
         ShadowJarVersionLock.lockConfiguration(project, shadeTransitively);
         ShadowJarVersionLock.lockConfiguration(project, unshaded);
+
+        // This is needed to "break the loop" when GCV does --write-locks. At project.afterEvaluate, VersionsLockPlugin
+        // will calculate its lock state, which involves resolving unifiedClasspath. unifiedClasspath extends from
+        // pretty much every other configuration, including rejectedFromShading, meaning when unifiedClasspath is
+        // resolved it causes the dependencies of rejectedFromShading to be evaluated. In an addAllLater below we do
+        // a resolution of shadedTransitively. Starting Gradle 8, afterEvaluate is considered "configuring" project
+        // state rather than "executed" project state. VersionPropsPlugin prevents us from resolving configurations
+        // at configuration time (for perf reasons). One way to avoid this is to exclude rejectedFromShading from
+        // the version props plugin which is what we do below. Any constraints that were going to be injected into
+        // in a "final" configuration like runtimeClasspath or runtimeElements should still get these constraints
+        // from another source, so this *should* be ok (there is a test for this).
         ShadowJarVersionLock.excludeConfigurationFromVersionsPropsInjection(project, rejectedFromShading);
 
         unshaded.getIncoming().beforeResolve(_ignored -> {
