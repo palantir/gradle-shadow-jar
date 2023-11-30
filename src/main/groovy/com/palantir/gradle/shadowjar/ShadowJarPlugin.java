@@ -35,7 +35,7 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ExternalModuleDependency;
 import org.gradle.api.artifacts.ResolvedDependency;
 import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.util.GradleVersion;
@@ -111,12 +111,15 @@ public class ShadowJarPlugin implements Plugin<Project> {
             conf.setCanBeResolved(false);
         });
 
-        Configuration runtimeElements =
-                project.getConfigurations().getByName(JavaPlugin.RUNTIME_ELEMENTS_CONFIGURATION_NAME);
-        runtimeElements.extendsFrom(rejectedFromShading);
+        project.getConfigurations()
+                .named(JavaPlugin.RUNTIME_ELEMENTS_CONFIGURATION_NAME)
+                .configure(runtimeElements -> {
+                    runtimeElements.extendsFrom(rejectedFromShading);
+                });
 
         ShadowJarVersionLock.lockConfiguration(project, shadeTransitively);
         ShadowJarVersionLock.lockConfiguration(project, unshaded);
+        ShadowJarVersionLock.excludeConfigurationFromVersionsPropsInjection(project, rejectedFromShading);
 
         unshaded.getIncoming().beforeResolve(_ignored -> {
             Stream.of(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
@@ -128,14 +131,11 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     });
         });
 
-        project.getConvention()
-                .getPlugin(JavaPluginConvention.class)
-                .getSourceSets()
-                .configureEach(sourceSet -> Stream.of(
-                                sourceSet.getCompileClasspathConfigurationName(),
-                                sourceSet.getRuntimeClasspathConfigurationName())
-                        .map(project.getConfigurations()::getByName)
-                        .forEach(conf -> conf.extendsFrom(shadeTransitively)));
+        project.getExtensions().getByType(SourceSetContainer.class).configureEach(sourceSet -> Stream.of(
+                        sourceSet.getCompileClasspathConfigurationName(),
+                        sourceSet.getRuntimeClasspathConfigurationName())
+                .map(project.getConfigurations()::getByName)
+                .forEach(conf -> conf.extendsFrom(shadeTransitively)));
 
         Supplier<ShadowingCalculation> shadowingCalculation = Suppliers.memoize(() -> {
             Set<ResolvedDependency> shadedModules = shadeTransitively
