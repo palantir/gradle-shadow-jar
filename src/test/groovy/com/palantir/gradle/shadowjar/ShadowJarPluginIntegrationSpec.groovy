@@ -49,7 +49,7 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
             }
 
             plugins {
-                id 'org.unbroken-dome.test-sets' version '4.0.0' apply false
+                id 'org.unbroken-dome.test-sets' version '4.1.0' apply false
             }
 
             apply plugin: 'com.palantir.consistent-versions'
@@ -490,6 +490,36 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
 
         then:
         shadowJarFile().manifest.mainAttributes.getValue('Foo') == 'Bar'
+    }
+
+    def 'the right version of a module rejected from shading is used when specified as a virtual platfrom from versions.props'() {
+        // This checks that excluding the `rejectedFromShading` configuration from having versions.props
+        // constraint injection does not cause the wrong versions to be used for modules rejected from shading when
+        // they are part of a virtual platform. More context for my fear:
+        // https://github.com/palantir/gradle-consistent-versions/blob/f407769c01dba863147e6108bd12e6990ab2ebed/src/main/java/com/palantir/gradle/versions/VersionsPropsPlugin.java#L260-L283
+
+        file('versions.props') << '''
+            org.slf4j:* = 1.7.30
+        '''.stripIndent(true)
+
+        // language=Gradle
+        buildFile << '''
+            dependencies {
+                shadeTransitively 'org.slf4j:slf4j-log4j12:1.7.26'
+            }
+            
+            task printRuntimeClasspath {
+                doLast {
+                    println configurations.runtimeClasspath.incoming.resolutionResult.allDependencies.collect { it }
+                }
+            }
+        '''.stripIndent(true)
+
+        when:
+        def output = runTasksAndCheckSuccess('printRuntimeClasspath').standardOutput
+
+        then:
+        output.contains('org.slf4j:slf4j-log4j12:1.7.30')
     }
 
     @CompileStatic

@@ -27,4 +27,10 @@ class ShadowJarVersionLock {
             }
         }
     }
+
+    static excludeConfigurationFromVersionsPropsInjection(Project project, Configuration configuration) {
+        project.versionRecommendations {
+            excludeConfigurations(configuration.name)
+        }
+    }
 }

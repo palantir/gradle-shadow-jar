@@ -35,7 +35,7 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ExternalModuleDependency;
 import org.gradle.api.artifacts.ResolvedDependency;
 import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.util.GradleVersion;
@@ -111,12 +111,26 @@ public class ShadowJarPlugin implements Plugin<Project> {
             conf.setCanBeResolved(false);
         });
 
-        Configuration runtimeElements =
-                project.getConfigurations().getByName(JavaPlugin.RUNTIME_ELEMENTS_CONFIGURATION_NAME);
-        runtimeElements.extendsFrom(rejectedFromShading);
+        project.getConfigurations()
+                .named(JavaPlugin.RUNTIME_ELEMENTS_CONFIGURATION_NAME)
+                .configure(runtimeElements -> {
+                    runtimeElements.extendsFrom(rejectedFromShading);
+                });
 
         ShadowJarVersionLock.lockConfiguration(project, shadeTransitively);
         ShadowJarVersionLock.lockConfiguration(project, unshaded);
+
+        // This is needed to "break the loop" when GCV does --write-locks. At project.afterEvaluate, VersionsLockPlugin
+        // will calculate its lock state, which involves resolving unifiedClasspath. unifiedClasspath extends from
+        // pretty much every other configuration, including rejectedFromShading, meaning when unifiedClasspath is
+        // resolved it causes the dependencies of rejectedFromShading to be evaluated. In an addAllLater below we do
+        // a resolution of shadedTransitively. Starting Gradle 8, afterEvaluate is considered "configuring" project
+        // state rather than "executed" project state. VersionPropsPlugin prevents us from resolving configurations
+        // at configuration time (for perf reasons). One way to avoid this is to exclude rejectedFromShading from
+        // the version props plugin which is what we do below. Any constraints that were going to be injected into
+        // in a "final" configuration like runtimeClasspath or runtimeElements should still get these constraints
+        // from another source, so this *should* be ok (there is a test for this).
+        ShadowJarVersionLock.excludeConfigurationFromVersionsPropsInjection(project, rejectedFromShading);
 
         unshaded.getIncoming().beforeResolve(_ignored -> {
             Stream.of(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
@@ -128,14 +142,11 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     });
         });
 
-        project.getConvention()
-                .getPlugin(JavaPluginConvention.class)
-                .getSourceSets()
-                .configureEach(sourceSet -> Stream.of(
-                                sourceSet.getCompileClasspathConfigurationName(),
-                                sourceSet.getRuntimeClasspathConfigurationName())
-                        .map(project.getConfigurations()::getByName)
-                        .forEach(conf -> conf.extendsFrom(shadeTransitively)));
+        project.getExtensions().getByType(SourceSetContainer.class).configureEach(sourceSet -> Stream.of(
+                        sourceSet.getCompileClasspathConfigurationName(),
+                        sourceSet.getRuntimeClasspathConfigurationName())
+                .map(project.getConfigurations()::getByName)
+                .forEach(conf -> conf.extendsFrom(shadeTransitively)));
 
         Supplier<ShadowingCalculation> shadowingCalculation = Suppliers.memoize(() -> {
             Set<ResolvedDependency> shadedModules = shadeTransitively
