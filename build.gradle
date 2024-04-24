@@ -77,7 +77,7 @@ gradlePlugin {
 
 javaVersions {
     libraryTarget = 11
-    runtime = 17
+    runtime = 21
 }
 
 tasks.withType(ValidatePlugins).configureEach {
