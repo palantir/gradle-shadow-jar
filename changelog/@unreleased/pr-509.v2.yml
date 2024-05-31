@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Ban com.palantir.sls.logging:sls-logging-log4j-slf4j from shading.
+  links:
+  - https://github.com/palantir/gradle-shadow-jar/pull/509
