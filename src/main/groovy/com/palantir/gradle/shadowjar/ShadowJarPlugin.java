@@ -48,6 +48,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
             groupOf("log4j"),
             groupOf("org.apache.logging.log4j"),
             groupOf("com.palantir.safe-logging").and(artifactOf("safe-logging")),
+            groupOf("com.palantir.sls.logging").and(artifactOf("sls-logging-log4j-slf4j")),
             groupOf("com.palantir.tracing").and(artifactOf("tracing").or(artifactOf("tracing-api"))),
             groupOf("com.palantir.tritium").and(artifactOf("tritium-registry")),
             groupOf("org.springframework").and(artifactOf("spring-jcl")));
