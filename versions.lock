@@ -1,4 +1,4 @@
-# Run ./gradlew writeVersionsLock to regenerate this file
+# Run ./gradlew writeVersionsLocks to regenerate this file
 com.github.johnrengelman:shadow:8.1.1 (1 constraints: 0c051736)
 com.google.code.findbugs:jsr305:3.0.2 (4 constraints: 472cfc5f)
 com.google.errorprone:error_prone_annotations:2.26.1 (8 constraints: 726cd994)
