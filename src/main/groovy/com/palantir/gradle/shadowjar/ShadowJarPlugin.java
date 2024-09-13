@@ -21,6 +21,7 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import com.palantir.gradle.versions.VersionRecommendationsExtension;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
@@ -110,6 +111,13 @@ public class ShadowJarPlugin implements Plugin<Project> {
             conf.setVisible(false);
             conf.setCanBeResolved(false);
         });
+
+        // Tell the consistent versions plugin not to look at the unshaded configuration for the
+        // checkUnusedConstraints task,  It forces resolution before the configuration below is complete which causes
+        // an error under gradle8.
+        VersionRecommendationsExtension recExt =
+                project.getExtensions().getByType(VersionRecommendationsExtension.class);
+        recExt.excludeConfigurations("unshaded");
 
         project.getConfigurations()
                 .named(JavaPlugin.RUNTIME_ELEMENTS_CONFIGURATION_NAME)
