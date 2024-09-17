@@ -133,10 +133,10 @@ public class ShadowJarPlugin implements Plugin<Project> {
         ShadowJarVersionLock.excludeConfigurationFromVersionsPropsInjection(project, rejectedFromShading);
 
         unshaded.getIncoming().beforeResolve(incoming -> {
-            // only process if the incoming deps are for the unshaded configuration itself.  The GCV plugin creates an
-            // unshadedCopy configuration from the original and the beforeResolve Action is copied as well.  That
-            // can lead to errors when it attempts to add to the original unshaded configuration.
-            if (!incoming.getName().equals(unshaded.getName())) {
+            // only process if the unshaded configuration is still unresolved.  The GCV plugin creates an
+            // unshadedCopy configuration from the original and this beforeResolve Action is copied as well.  That
+            // leads to errors when it tries to modify the original configuration below for a second time.
+            if (!unshaded.getState().equals(Configuration.State.UNRESOLVED)) {
                 return;
             }
             Stream.of(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
