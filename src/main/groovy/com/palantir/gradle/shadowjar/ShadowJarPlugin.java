@@ -138,15 +138,13 @@ public class ShadowJarPlugin implements Plugin<Project> {
             if (incoming.getName().equals(unshaded.getName() + "Copy")) {
                 return;
             }
-            Set<Configuration> upstreamConfigs = Stream.of(
-                            JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME,
-                            JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
+            Stream.of(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
                     .map(project.getConfigurations()::getByName)
-                    .map(Configuration::getExtendsFrom)
-                    .flatMap(Set::stream)
-                    .filter(conf -> conf != shadeTransitively)
-                    .collect(Collectors.toSet());
-            unshaded.extendsFrom(upstreamConfigs.toArray(new Configuration[0]));
+                    .forEach(classpathConf -> {
+                        unshaded.extendsFrom(classpathConf.getExtendsFrom().stream()
+                                .filter(extendsFromConf -> extendsFromConf != shadeTransitively)
+                                .toArray(Configuration[]::new));
+                    });
         });
 
         project.getExtensions().getByType(SourceSetContainer.class).configureEach(sourceSet -> Stream.of(
