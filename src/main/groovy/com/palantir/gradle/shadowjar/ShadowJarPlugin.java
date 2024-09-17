@@ -21,7 +21,6 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import com.palantir.gradle.versions.VersionRecommendationsExtension;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
@@ -112,13 +111,6 @@ public class ShadowJarPlugin implements Plugin<Project> {
             conf.setCanBeResolved(false);
         });
 
-        // Tell the consistent versions plugin not to look at the unshaded configuration for the
-        // checkUnusedConstraints task,  It forces resolution before the configuration below is complete which causes
-        // an error under gradle8.
-        VersionRecommendationsExtension recExt =
-                project.getExtensions().getByType(VersionRecommendationsExtension.class);
-        recExt.excludeConfigurations("unshaded");
-
         project.getConfigurations()
                 .named(JavaPlugin.RUNTIME_ELEMENTS_CONFIGURATION_NAME)
                 .configure(runtimeElements -> {
@@ -140,14 +132,21 @@ public class ShadowJarPlugin implements Plugin<Project> {
         // from another source, so this *should* be ok (there is a test for this).
         ShadowJarVersionLock.excludeConfigurationFromVersionsPropsInjection(project, rejectedFromShading);
 
-        unshaded.getIncoming().beforeResolve(_ignored -> {
-            Stream.of(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
+        unshaded.getIncoming().beforeResolve(incoming -> {
+            // do not attempt to process if this is the copy of the configuration - it means that GCV has already
+            // resolved things.
+            if (incoming.getName().equals(unshaded.getName() + "Copy")) {
+                return;
+            }
+            Set<Configuration> upstreamConfigs = Stream.of(
+                            JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME,
+                            JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
                     .map(project.getConfigurations()::getByName)
-                    .forEach(classpathConf -> {
-                        unshaded.extendsFrom(classpathConf.getExtendsFrom().stream()
-                                .filter(extendsFromConf -> extendsFromConf != shadeTransitively)
-                                .toArray(Configuration[]::new));
-                    });
+                    .map(Configuration::getExtendsFrom)
+                    .flatMap(Set::stream)
+                    .filter(conf -> conf != shadeTransitively)
+                    .collect(Collectors.toSet());
+            unshaded.extendsFrom(upstreamConfigs.toArray(new Configuration[0]));
         });
 
         project.getExtensions().getByType(SourceSetContainer.class).configureEach(sourceSet -> Stream.of(
