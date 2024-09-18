@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: exclude shaded configuration from checkUnusedConstraints task
+  links:
+  - https://github.com/palantir/gradle-shadow-jar/pull/552

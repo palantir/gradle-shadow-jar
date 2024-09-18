@@ -28,7 +28,7 @@ To apply this plugin, *build.gradle* should look something like:
  }
 ```
 
-*Requires [`gradle-consistent-versions`](https://github.com/palantir/gradle-consistent-versions) and Gradle 6 to work.*
+*Requires [`gradle-consistent-versions`](https://github.com/palantir/gradle-consistent-versions) and Gradle 8 to work.*
 
 ## Producing shaded JARs
 

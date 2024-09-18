@@ -43,7 +43,7 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
                 }
             
                 dependencies {
-                    classpath 'com.palantir.gradle.consistentversions:gradle-consistent-versions:2.0.0'
+                    classpath 'com.palantir.gradle.consistentversions:gradle-consistent-versions:2.24.0'
                     classpath 'com.netflix.nebula:nebula-publishing-plugin:17.2.1'
                 }
             }
@@ -520,6 +520,19 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
 
         then:
         output.contains('org.slf4j:slf4j-log4j12:1.7.30')
+    }
+
+    def 'checkUnusedConstraints runs correctly'() {
+        when:
+        //System.setProperty("ignoreDeprecations", "true")
+
+        file('gradle.properties').text = """
+        ignoreLockFile=true
+        """.stripIndent()
+        createFile('versions.props')
+
+        then:
+        runTasksAndCheckSuccess('checkUnusedConstraints')
     }
 
     @CompileStatic
