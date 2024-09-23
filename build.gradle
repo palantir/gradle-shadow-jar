@@ -25,6 +25,7 @@ repositories {
 
 apply plugin: 'com.palantir.external-publish'
 apply plugin: 'com.palantir.git-version'
+apply plugin: 'com.palantir.jdks'
 
 group 'com.palantir.gradle.shadow-jar'
 version System.env.CIRCLE_TAG ?: gitVersion()
@@ -83,4 +84,8 @@ javaVersions {
 tasks.withType(ValidatePlugins).configureEach {
     // undo once we change gradle-jdks to use built in jdk locations
     getLauncher().set(provider { (JavaLauncher) null })
+}
+
+jdks {
+    daemonTarget = 17
 }
