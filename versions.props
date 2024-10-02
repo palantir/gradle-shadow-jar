@@ -4,7 +4,7 @@ org.immutables:value = 2.10.1
 com.google.guava:guava = 33.3.1-jre
 
 # Test deps
-com.palantir.tracing:tracing = 6.19.0
+com.palantir.tracing:tracing = 6.20.0
 com.palantir.safe-logging:safe-logging = 3.7.0
 com.palantir.tritium:tritium-registry = 0.93.0
 com.netflix.nebula:nebula-test = 10.6.1
@@ -13,6 +13,6 @@ commons-io:commons-io = 2.17.0
 # conflict resolution
 com.google.code.findbugs:jsr305 = 3.0.2
 com.google.errorprone:error_prone_annotations = 2.11.0
-org.checkerframework:checker-qual = 3.47.0
+org.checkerframework:checker-qual = 3.48.0
 org.junit.jupiter:* = 5.11.1
 org.junit.vintage:* = 5.11.1
