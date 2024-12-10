@@ -7,7 +7,7 @@ com.google.guava:guava = 33.3.1-jre
 com.palantir.tracing:tracing = 6.20.0
 com.palantir.safe-logging:safe-logging = 3.7.0
 com.palantir.tritium:tritium-registry = 0.96.0
-com.netflix.nebula:nebula-test = 10.6.1
+com.netflix.nebula:nebula-test = 10.6.2
 commons-io:commons-io = 2.18.0
 
 # conflict resolution
