@@ -89,7 +89,7 @@ tasks.withType(ValidatePlugins).configureEach {
 }
 
 jdks {
-    daemonTarget = 17
+    daemonTarget = 21
 }
 
 gradleTestUtils {
