@@ -18,7 +18,6 @@ buildscript {
         classpath 'com.palantir.gradle.gitversion:gradle-git-version:4.0.0'
         classpath 'com.palantir.gradle.guide:gradle-guide:1.7.0'
         classpath 'com.palantir.gradle.idea-configuration:gradle-idea-configuration:0.4.0'
-        classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     }
 }
 
@@ -42,7 +41,6 @@ apply plugin: 'com.palantir.failure-reports'
 apply plugin: 'com.palantir.baseline'
 apply plugin: 'java-gradle-plugin'
 apply plugin: 'groovy'
-apply plugin: 'org.inferred.processors'
 apply plugin: 'com.palantir.consistent-versions'
 apply plugin: 'com.palantir.baseline-java-versions'
 apply plugin: 'com.palantir.jdks.latest'
