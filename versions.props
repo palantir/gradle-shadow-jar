@@ -5,7 +5,7 @@ com.google.guava:guava = 33.4.8-jre
 # Test deps
 com.palantir.tracing:tracing = 6.28.0
 com.palantir.safe-logging:safe-logging = 3.9.0
-com.palantir.tritium:tritium-registry = 0.108.0
+com.palantir.tritium:tritium-registry = 0.109.0
 com.netflix.nebula:nebula-test = 10.6.2
 commons-io:commons-io = 2.20.0
 

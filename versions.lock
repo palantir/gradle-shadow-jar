@@ -64,9 +64,9 @@ com.palantir.tracing:tracing:6.28.0 (1 constraints: 4205633b)
 
 com.palantir.tracing:tracing-api:6.28.0 (1 constraints: d80c3316)
 
-com.palantir.tritium:tritium-registry:0.108.0 (1 constraints: 6b05a040)
+com.palantir.tritium:tritium-registry:0.109.0 (1 constraints: 6c05a340)
 
-io.dropwizard.metrics:metrics-core:4.2.36 (1 constraints: c91056b6)
+io.dropwizard.metrics:metrics-core:4.2.37 (1 constraints: ca1057b6)
 
 junit:junit:4.13.2 (2 constraints: ca1e3ab9)
 
