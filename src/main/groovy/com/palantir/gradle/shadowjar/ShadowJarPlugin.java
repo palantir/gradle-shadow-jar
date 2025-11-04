@@ -79,10 +79,13 @@ public class ShadowJarPlugin implements Plugin<Project> {
         project.getPluginManager().apply(JavaPlugin.class);
         project.getPluginManager().apply(ShadowPlugin.class);
 
+        // Create extension to store custom relocations
+        ShadowJarExtension extension = project.getExtensions().create("shadowJar", ShadowJarExtension.class);
+
         TaskProvider<ShadowJar> shadowJarProvider =
                 project.getTasks().withType(ShadowJar.class).named("shadowJar");
 
-        setupShadowJarToShadeTheCorrectDependencies(project, shadowJarProvider);
+        setupShadowJarToShadeTheCorrectDependencies(project, shadowJarProvider, extension);
 
         ensureShadowJarHasDefaultClassifierThatDoesNotClashWithTheRegularJarTask(project, shadowJarProvider);
 
@@ -94,7 +97,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
     }
 
     private void setupShadowJarToShadeTheCorrectDependencies(
-            Project project, TaskProvider<ShadowJar> shadowJarProvider) {
+            Project project, TaskProvider<ShadowJar> shadowJarProvider, ShadowJarExtension extension) {
         Configuration shadeTransitively = project.getConfigurations().create("shadeTransitively", conf -> {
             conf.setCanBeConsumed(false);
             conf.setVisible(false);
@@ -208,6 +211,8 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     relocateTask.getAcceptedDependencies().set(project.provider(() -> shadowingCalculation
                             .get()
                             .acceptedShadedModules()));
+
+                    relocateTask.getCustomRelocations().set(extension.getCustomRelocations());
                 });
 
         shadowJarProvider.configure(shadowJar -> {

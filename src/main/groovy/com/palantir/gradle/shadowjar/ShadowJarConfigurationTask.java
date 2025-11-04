@@ -23,16 +23,6 @@ import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.jar.JarFile;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.zip.ZipEntry;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.artifacts.ResolvedDependency;
 import org.gradle.api.file.FileCollection;
@@ -44,6 +34,16 @@ import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.TaskAction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.jar.JarFile;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
 
 // Originally taken from https://github.com/johnrengelman/shadow/blob/d4e649d7dd014bfdd9575bfec92d7e74c3cf1aca/
 // src/main/groovy/com/github/jengelman/gradle/plugins/shadow/tasks/ConfigureShadowRelocation.groovy
@@ -63,6 +63,8 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
     private final Property<String> prefix = getProject().getObjects().property(String.class);
     private final SetProperty<ResolvedDependency> acceptedDependencies =
             getProject().getObjects().setProperty(ResolvedDependency.class);
+    private final org.gradle.api.provider.MapProperty<String, String> customRelocations =
+            getProject().getObjects().mapProperty(String.class, String.class);
 
     @Internal
     public final Property<ShadowJar> getShadowJar() {
@@ -84,45 +86,151 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
         return acceptedDependencies;
     }
 
+    @Input
+    public final org.gradle.api.provider.MapProperty<String, String> getCustomRelocations() {
+        return customRelocations;
+    }
+
     @TaskAction
     public final void run() {
         ShadowJar shadowJarTask = shadowJarProperty.get();
 
+        java.util.Map<String, String> customRelocationsMap = customRelocations.getOrElse(Collections.emptyMap());
+
+        // Build a map from each dependency (including transitives) to its root dependency
+        // acceptedDependencies may contain both direct dependencies AND their transitives as separate entries
+        // Strategy: Dependencies with custom relocations are always their own roots
+        java.util.Map<ResolvedDependency, ResolvedDependency> depToRoot = new java.util.HashMap<>();
+        Set<ResolvedDependency> acceptedSet = acceptedDependencies.get();
+
+        // First: Map all dependencies with custom relocations to themselves
+        // These should always be treated as roots, even if they're transitives of others
+        for (ResolvedDependency dep : acceptedSet) {
+            String key = dep.getModuleGroup() + ":" + dep.getModuleName();
+            if (customRelocationsMap.containsKey(key)) {
+                depToRoot.put(dep, dep);
+            }
+        }
+
+        // Second: Process dependencies that have children - these are "parent" dependencies
+        // Map them to themselves and map all their transitives to them (unless already mapped above)
+        for (ResolvedDependency dep : acceptedSet) {
+            if (dep.getChildren().size() > 0) {
+                if (!depToRoot.containsKey(dep)) {
+                    depToRoot.put(dep, dep);
+                }
+                addAllTransitivesToMap(dep, dep, depToRoot);
+            }
+        }
+
+        // Third: Process dependencies without children
+        // If they're not already mapped, map them to themselves
+        for (ResolvedDependency dep : acceptedSet) {
+            if (!depToRoot.containsKey(dep)) {
+                depToRoot.put(dep, dep);
+            }
+        }
+
+        // Set up the dependency filter - use direct dependencies only unless we have custom relocations
         shadowJarTask.getDependencyFilter().include(acceptedDependencies.get()::contains);
 
         FileCollection jars = shadowJarTask.getDependencyFilter().resolve(getConfigurations());
 
-        Set<String> pathsInJars = jars.getFiles().stream()
-                .flatMap(jar -> {
-                    try (JarFile jarFile = new JarFile(jar)) {
-                        return Collections.list(jarFile.entries()).stream()
-                                .filter(entry -> !entry.isDirectory())
-                                .map(ZipEntry::getName)
-                                .peek(path -> log.debug("Jar '{}' contains entry '{}'", jar.getName(), path))
-                                .peek(path -> Preconditions.checkState(
-                                        !path.startsWith("/"), "Unexpected absolute path '%s' in jar '%s'", path, jar))
-                                .collect(Collectors.toList())
-                                .stream();
-                    } catch (IOException e) {
-                        throw new RuntimeException("Could not open jar file", e);
+        // Build a map of jar file name pattern to the root dependency it belongs to
+        // We use the artifact name (group-artifact-version) to match JAR files
+        java.util.Map<String, ResolvedDependency> jarNameToRootDependency = new java.util.HashMap<>();
+        for (java.util.Map.Entry<ResolvedDependency, ResolvedDependency> entry : depToRoot.entrySet()) {
+            ResolvedDependency dep = entry.getKey();
+            ResolvedDependency root = entry.getValue();
+
+            // Create a key from the dependency coordinates
+            // JAR files typically have names like "guava-28.2-jre.jar" or "j2objc-annotations-1.3.jar"
+            String artifactPattern = dep.getModuleName() + "-" + dep.getModuleVersion();
+            jarNameToRootDependency.put(artifactPattern, root);
+            log.debug(
+                    "Mapped artifact pattern {} from {}:{}:{} to root {}:{}",
+                    artifactPattern,
+                    dep.getModuleGroup(),
+                    dep.getModuleName(),
+                    dep.getModuleVersion(),
+                    root.getModuleGroup(),
+                    root.getModuleName());
+        }
+
+        // Group paths by their relocation prefix
+        java.util.Map<String, Set<String>> pathsByPrefix = new java.util.HashMap<>();
+        boolean hasMultiRelease = false;
+
+        for (java.io.File jar : jars.getFiles()) {
+            String jarName = jar.getName();
+            // Try to match the JAR file name against our patterns
+            // JAR names are typically like "guava-28.2-jre.jar" or "j2objc-annotations-1.3.jar"
+            // Remove the .jar extension
+            String jarBaseName = jarName.endsWith(".jar") ? jarName.substring(0, jarName.length() - 4) : jarName;
+
+            ResolvedDependency rootDep = null;
+            // Try to find a matching pattern in our map
+            for (java.util.Map.Entry<String, ResolvedDependency> entry : jarNameToRootDependency.entrySet()) {
+                if (jarBaseName.startsWith(entry.getKey())) {
+                    rootDep = entry.getValue();
+                    break;
+                }
+            }
+
+            String relocPrefix;
+            if (rootDep != null) {
+                String key = rootDep.getModuleGroup() + ":" + rootDep.getModuleName();
+                relocPrefix = customRelocationsMap.getOrDefault(key, prefix.get());
+            } else {
+                relocPrefix = prefix.get();
+            }
+
+            try (JarFile jarFile = new JarFile(jar)) {
+                List<String> paths = Collections.list(jarFile.entries()).stream()
+                        .filter(entry -> !entry.isDirectory())
+                        .map(ZipEntry::getName)
+                        .peek(path -> log.debug("Jar '{}' contains entry '{}'", jar.getName(), path))
+                        .peek(path -> Preconditions.checkState(
+                                !path.startsWith("/"), "Unexpected absolute path '%s' in jar '%s'", path, jar))
+                        .collect(Collectors.toList());
+
+                // Check for multi-release content
+                for (String path : paths) {
+                    if (splitMultiReleasePath(path).size() > 0) {
+                        hasMultiRelease = true;
                     }
-                })
-                .collect(Collectors.toSet());
+                }
 
-        // The Relocator is responsible for fixing the bytecode at callsites *and* filenames of .class files,
-        // so we have to account for things _calling_ these weird multi-release classes.
-        Set<String> multiReleaseStuff = pathsInJars.stream()
-                .flatMap(input -> splitMultiReleasePath(input).stream().skip(1))
-                .collect(Collectors.toSet());
+                // Add paths and multi-release stuff to the appropriate prefix bucket
+                Set<String> pathsForPrefix = pathsByPrefix.computeIfAbsent(relocPrefix, k -> new java.util.HashSet<>());
+                pathsForPrefix.addAll(paths);
 
-        Set<String> relocatable = Stream.concat(pathsInJars.stream(), multiReleaseStuff.stream())
-                .filter(path -> !path.equals("META-INF/MANIFEST.MF")) // don't relocate this!
-                .filter(path -> !path.startsWith(SERVICE_PROVIDER_PREFIX)) // service providers remain in the root
-                .collect(Collectors.toSet());
+                // Add multi-release paths
+                for (String path : paths) {
+                    List<String> multiReleaseParts = splitMultiReleasePath(path);
+                    if (multiReleaseParts.size() > 1) {
+                        pathsForPrefix.add(multiReleaseParts.get(1));
+                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Could not open jar file", e);
+            }
+        }
 
-        shadowJarTask.relocate(new JarFilesRelocator(relocatable, prefix.get() + "."));
+        // Create a relocator for each unique prefix
+        for (java.util.Map.Entry<String, Set<String>> entry : pathsByPrefix.entrySet()) {
+            String relocPrefix = entry.getKey();
+            Set<String> paths = entry.getValue();
 
-        if (!multiReleaseStuff.isEmpty()) {
+            Set<String> relocatable = paths.stream()
+                    .filter(path -> !path.equals("META-INF/MANIFEST.MF")) // don't relocate this!
+                    .filter(path -> !path.startsWith(SERVICE_PROVIDER_PREFIX)) // service providers remain in root
+                    .collect(Collectors.toSet());
+
+            shadowJarTask.relocate(new JarFilesRelocator(relocatable, relocPrefix + "."));
+        }
+
+        if (hasMultiRelease) {
             try {
                 shadowJarTask.transform(ComposableManifestAppenderTransformer.class, transformer -> {
                     // JEP 238 requires this manifest entry
@@ -141,6 +249,21 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
             return ImmutableList.of(input.substring(0, matcher.end()), input.substring(matcher.end()));
         } else {
             return ImmutableList.of();
+        }
+    }
+
+    /**
+     * Recursively adds all transitive dependencies to the map, mapping each to the root.
+     */
+    private static void addAllTransitivesToMap(
+            ResolvedDependency current,
+            ResolvedDependency root,
+            java.util.Map<ResolvedDependency, ResolvedDependency> map) {
+        for (ResolvedDependency child : current.getChildren()) {
+            if (!map.containsKey(child)) {
+                map.put(child, root);
+                addAllTransitivesToMap(child, root, map);
+            }
         }
     }
 
