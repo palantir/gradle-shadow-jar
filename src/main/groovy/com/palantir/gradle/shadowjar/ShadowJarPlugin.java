@@ -18,23 +18,21 @@ package com.palantir.gradle.shadowjar;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
-import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ExternalModuleDependency;
 import org.gradle.api.artifacts.ResolvedDependency;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
@@ -151,10 +149,10 @@ public class ShadowJarPlugin implements Plugin<Project> {
         project.getExtensions().getByType(SourceSetContainer.class).configureEach(sourceSet -> Stream.of(
                         sourceSet.getCompileClasspathConfigurationName(),
                         sourceSet.getRuntimeClasspathConfigurationName())
-                .map(project.getConfigurations()::getByName)
-                .forEach(conf -> conf.extendsFrom(shadeTransitively)));
+                .map(project.getConfigurations()::named)
+                .forEach(configuration -> configuration.configure(conf -> conf.extendsFrom(shadeTransitively))));
 
-        Supplier<ShadowingCalculation> shadowingCalculation = Suppliers.memoize(() -> {
+        Provider<ShadowingCalculation> shadowingCalculation = project.provider(() -> {
             Set<ResolvedDependency> shadedModules = shadeTransitively
                     .getResolvedConfiguration()
                     .getLenientConfiguration()
@@ -189,25 +187,25 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
         rejectedFromShading
                 .getDependencies()
-                .addAllLater(project.getObjects().setProperty(Dependency.class).value(project.provider(() -> {
-                    return shadowingCalculation.get().rejectedShadedModules().stream()
-                            .map(this::depToString)
-                            .map(project.getDependencies()::create)
-                            .collect(Collectors.toSet());
-                })));
+                .addAllLater(shadowingCalculation.map(calc -> calc.rejectedShadedModules().stream()
+                        .map(this::depToString)
+                        .map(project.getDependencies()::create)
+                        .collect(Collectors.toSet())));
 
         TaskProvider<ShadowJarConfigurationTask> shadowJarConfigurationTask = project.getTasks()
                 .register("relocateShadowJar", ShadowJarConfigurationTask.class, relocateTask -> {
-                    relocateTask.getShadowJar().set(shadowJarProvider.get());
+                    relocateTask.getShadowJar().set(shadowJarProvider);
 
                     relocateTask.getPrefix().set(project.provider(() -> String.join(
                                     ".", "shadow", project.getGroup().toString(), project.getName())
                             .replace('-', '_')
                             .toLowerCase(Locale.US)));
 
-                    relocateTask.getAcceptedDependencies().set(project.provider(() -> shadowingCalculation
-                            .get()
-                            .acceptedShadedModules()));
+                    relocateTask.getConfigurations().set(Collections.singletonList(shadeTransitively));
+
+                    relocateTask
+                            .getAcceptedDependencies()
+                            .set(shadowingCalculation.map(ShadowingCalculation::acceptedShadedModules));
                 });
 
         shadowJarProvider.configure(shadowJar -> {

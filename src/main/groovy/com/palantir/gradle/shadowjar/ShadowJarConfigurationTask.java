@@ -23,6 +23,22 @@ import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+
+import java.io.UncheckedIOException;
+
+import org.gradle.api.DefaultTask;
+import org.gradle.api.artifacts.ResolvedDependency;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.Property;
+import org.gradle.api.provider.SetProperty;
+import org.gradle.api.tasks.Classpath;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.TaskAction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -33,17 +49,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
-import org.gradle.api.DefaultTask;
-import org.gradle.api.artifacts.ResolvedDependency;
-import org.gradle.api.file.FileCollection;
-import org.gradle.api.provider.Property;
-import org.gradle.api.provider.SetProperty;
-import org.gradle.api.tasks.Classpath;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.Internal;
-import org.gradle.api.tasks.TaskAction;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 // Originally taken from https://github.com/johnrengelman/shadow/blob/d4e649d7dd014bfdd9575bfec92d7e74c3cf1aca/
 // src/main/groovy/com/github/jengelman/gradle/plugins/shadow/tasks/ConfigureShadowRelocation.groovy
@@ -57,40 +62,25 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
     private static final Pattern MULTIRELEASE_JAR_PREFIX = Pattern.compile("^META-INF/versions/\\d+/");
     private static final String SERVICE_PROVIDER_PREFIX = "META-INF/services/";
 
-    private final Property<ShadowJar> shadowJarProperty =
-            getProject().getObjects().property(ShadowJar.class);
-
-    private final Property<String> prefix = getProject().getObjects().property(String.class);
-    private final SetProperty<ResolvedDependency> acceptedDependencies =
-            getProject().getObjects().setProperty(ResolvedDependency.class);
-
     @Internal
-    public final Property<ShadowJar> getShadowJar() {
-        return shadowJarProperty;
-    }
+    public abstract Property<ShadowJar> getShadowJar();
 
     @Input
-    public final Property<String> getPrefix() {
-        return prefix;
-    }
+    public abstract Property<String> getPrefix();
 
     @Classpath
-    public final List<FileCollection> getConfigurations() {
-        return shadowJarProperty.get().getConfigurations();
-    }
+    public abstract ListProperty<FileCollection> getConfigurations();
 
     @Input
-    public final SetProperty<ResolvedDependency> getAcceptedDependencies() {
-        return acceptedDependencies;
-    }
+    public abstract SetProperty<ResolvedDependency> getAcceptedDependencies();
 
     @TaskAction
     public final void run() {
-        ShadowJar shadowJarTask = shadowJarProperty.get();
+        ShadowJar shadowJarTask = getShadowJar().get();
 
-        shadowJarTask.getDependencyFilter().include(acceptedDependencies.get()::contains);
+        shadowJarTask.getDependencyFilter().include(getAcceptedDependencies().get()::contains);
 
-        FileCollection jars = shadowJarTask.getDependencyFilter().resolve(getConfigurations());
+        FileCollection jars = shadowJarTask.getDependencyFilter().resolve(getConfigurations().get());
 
         Set<String> pathsInJars = jars.getFiles().stream()
                 .flatMap(jar -> {
@@ -101,10 +91,10 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                                 .peek(path -> log.debug("Jar '{}' contains entry '{}'", jar.getName(), path))
                                 .peek(path -> Preconditions.checkState(
                                         !path.startsWith("/"), "Unexpected absolute path '%s' in jar '%s'", path, jar))
-                                .collect(Collectors.toList())
+                                .toList()
                                 .stream();
                     } catch (IOException e) {
-                        throw new RuntimeException("Could not open jar file", e);
+                        throw new UncheckedIOException("Could not open jar file", e);
                     }
                 })
                 .collect(Collectors.toSet());
@@ -120,7 +110,7 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                 .filter(path -> !path.startsWith(SERVICE_PROVIDER_PREFIX)) // service providers remain in the root
                 .collect(Collectors.toSet());
 
-        shadowJarTask.relocate(new JarFilesRelocator(relocatable, prefix.get() + "."));
+        shadowJarTask.relocate(new JarFilesRelocator(relocatable, getPrefix().get() + "."));
 
         if (!multiReleaseStuff.isEmpty()) {
             try {
