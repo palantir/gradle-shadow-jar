@@ -69,6 +69,7 @@ dependencies {
     testImplementation 'com.palantir.tracing:tracing'
     testImplementation 'com.palantir.safe-logging:safe-logging'
     testImplementation 'com.palantir.tritium:tritium-registry'
+    testImplementation 'com.palantir.gradle.plugintesting:gradle-plugin-testing-junit'
 }
 
 

@@ -1,4 +1,5 @@
 com.github.johnrengelman:shadow = 8.1.1
+com.palantir.gradle.plugintesting:gradle-plugin-testing-junit = 0.24.0
 org.immutables:value = 2.11.6
 com.google.guava:guava = 33.5.0-jre
 
