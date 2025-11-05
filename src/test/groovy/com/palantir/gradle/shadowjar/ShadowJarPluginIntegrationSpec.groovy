@@ -16,18 +16,20 @@
 
 package com.palantir.gradle.shadowjar
 
+import com.palantir.gradle.plugintesting.ConfigurationCacheSpec
 import groovy.transform.CompileStatic
 import groovy.xml.XmlUtil
+import nebula.test.IntegrationTestKitSpec
+import org.gradle.testkit.runner.BuildResult
+
 import java.nio.charset.StandardCharsets
 import java.util.jar.JarFile
 import java.util.stream.Collectors
-import nebula.test.IntegrationSpec
 import nebula.test.dependencies.DependencyGraph
 import nebula.test.dependencies.GradleDependencyGenerator
-import nebula.test.functional.ExecutionResult
 import org.apache.commons.io.IOUtils
 
-class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
+class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
     private static final String MAVEN_ROOT = 'build/repo'
 
     def setup() {
@@ -516,7 +518,7 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
         '''.stripIndent(true)
 
         when:
-        def output = runTasksAndCheckSuccess('printRuntimeClasspath').standardOutput
+        def output = runTasksAndCheckSuccess('printRuntimeClasspath').output
 
         then:
         output.contains('org.slf4j:slf4j-log4j12:1.7.30')
@@ -569,13 +571,11 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
     }
 
     @CompileStatic
-    private ExecutionResult runTasksAndCheckSuccess(String... args) {
-        ExecutionResult executionResult = runTasks((['--warning-mode=none', '--write-locks'] as String[]) + args)
-        println executionResult.getStandardOutput()
-        println executionResult.getStandardError()
-        executionResult.rethrowFailure()
+    private BuildResult runTasksAndCheckSuccess(String... args) {
+        BuildResult result = runTasksWithConfigurationCache((['--warning-mode=none', '--write-locks'] as String[]) + args)
+        println result.output
 
-        return executionResult
+        return result
     }
 
 }
