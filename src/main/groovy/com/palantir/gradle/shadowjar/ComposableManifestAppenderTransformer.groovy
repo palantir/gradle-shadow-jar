@@ -26,7 +26,6 @@ import org.gradle.api.file.FileTreeElement
 import org.gradle.api.tasks.Input
 import org.apache.tools.zip.ZipEntry
 import org.apache.tools.zip.ZipOutputStream
-import org.codehaus.plexus.util.IOUtil
 
 // Originally taken from https://github.com/johnrengelman/shadow/blob/6.1.0/src/main/groovy/com/github/jengelman/
 // gradle/plugins/shadow/transformers/ManifestAppenderTransformer.groovy
@@ -53,8 +52,8 @@ class ComposableManifestAppenderTransformer implements Transformer {
     @Override
     void transform(TransformerContext context) {
         if (manifestContents.length == 0) {
-            manifestContents = IOUtil.toByteArray(context.is)
-            IOUtil.close(context.is)
+            manifestContents = context.is.readAllBytes()
+            context.is.close()
         }
     }
 
@@ -74,9 +73,9 @@ class ComposableManifestAppenderTransformer implements Transformer {
 
         if (!attributes.isEmpty()) {
             for (attribute in attributes) {
-                os.write(attribute.first.getBytes(UTF_8))
+                os.write(attribute.v1.getBytes(UTF_8))
                 os.write(SEPARATOR)
-                os.write(attribute.second.toString().getBytes(UTF_8))
+                os.write(attribute.v2.toString().getBytes(UTF_8))
                 os.write(EOL)
             }
             os.write(EOL)

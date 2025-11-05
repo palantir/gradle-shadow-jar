@@ -196,10 +196,11 @@ public class ShadowJarPlugin implements Plugin<Project> {
                 .register("relocateShadowJar", ShadowJarConfigurationTask.class, relocateTask -> {
                     relocateTask.getShadowJar().set(shadowJarProvider);
 
-                    relocateTask.getPrefix().set(project.provider(() -> String.join(
-                                    ".", "shadow", project.getGroup().toString(), project.getName())
-                            .replace('-', '_')
-                            .toLowerCase(Locale.US)));
+                    relocateTask
+                            .getPrefix()
+                            .set(String.join(".", "shadow", project.getGroup().toString(), project.getName())
+                                    .replace('-', '_')
+                                    .toLowerCase(Locale.US));
 
                     relocateTask.getConfigurations().set(Collections.singletonList(shadeTransitively));
 
