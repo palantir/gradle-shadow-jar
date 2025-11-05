@@ -23,9 +23,17 @@ import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-
+import java.io.IOException;
 import java.io.UncheckedIOException;
-
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.jar.JarFile;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.artifacts.ResolvedDependency;
 import org.gradle.api.file.FileCollection;
@@ -38,17 +46,6 @@ import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.TaskAction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.jar.JarFile;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.zip.ZipEntry;
 
 // Originally taken from https://github.com/johnrengelman/shadow/blob/d4e649d7dd014bfdd9575bfec92d7e74c3cf1aca/
 // src/main/groovy/com/github/jengelman/gradle/plugins/shadow/tasks/ConfigureShadowRelocation.groovy
@@ -80,7 +77,8 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
 
         shadowJarTask.getDependencyFilter().include(getAcceptedDependencies().get()::contains);
 
-        FileCollection jars = shadowJarTask.getDependencyFilter().resolve(getConfigurations().get());
+        FileCollection jars =
+                shadowJarTask.getDependencyFilter().resolve(getConfigurations().get());
 
         Set<String> pathsInJars = jars.getFiles().stream()
                 .flatMap(jar -> {
