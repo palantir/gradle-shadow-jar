@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2020 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2025 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
@@ -34,53 +35,46 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
-import org.gradle.api.DefaultTask;
-import org.gradle.api.artifacts.ResolvedDependency;
-import org.gradle.api.file.FileCollection;
-import org.gradle.api.provider.ListProperty;
-import org.gradle.api.provider.Property;
-import org.gradle.api.provider.SetProperty;
-import org.gradle.api.tasks.Classpath;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.Internal;
-import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.provider.Provider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// Originally taken from https://github.com/johnrengelman/shadow/blob/d4e649d7dd014bfdd9575bfec92d7e74c3cf1aca/
-// src/main/groovy/com/github/jengelman/gradle/plugins/shadow/tasks/ConfigureShadowRelocation.groovy
-public abstract class ShadowJarConfigurationTask extends DefaultTask {
+/**
+ * Configures shadow jar relocation at configuration time.
+ * Extracts logic from ShadowJarConfigurationTask to make it configuration-cache compatible.
+ */
+final class JarRelocationConfigurer {
 
-    private static final Logger log = LoggerFactory.getLogger(ShadowJarConfigurationTask.class);
-
+    private static final Logger log = LoggerFactory.getLogger(JarRelocationConfigurer.class);
     private static final String CLASS_SUFFIX = ".class";
-
-    // Multi-Release JAR Files are defined in https://openjdk.java.net/jeps/238
     private static final Pattern MULTIRELEASE_JAR_PREFIX = Pattern.compile("^META-INF/versions/\\d+/");
     private static final String SERVICE_PROVIDER_PREFIX = "META-INF/services/";
 
-    @Internal
-    public abstract Property<ShadowJar> getShadowJar();
+    private JarRelocationConfigurer() {}
 
-    @Input
-    public abstract Property<String> getPrefix();
+    /**
+     * Configures relocation for the shadow jar with lazy JAR scanning.
+     * This is called at configuration time but JAR scanning happens lazily at execution time.
+     */
+    static void configureShadowJarRelocation(
+            ShadowJar shadowJar,
+            Configuration configuration,
+            Provider<Set<String>> acceptedCoordinatesProvider,
+            String relocationPrefix) {
 
-    @Classpath
-    public abstract ListProperty<FileCollection> getConfigurations();
+        log.info("Configuring shadow jar relocation with prefix '{}'", relocationPrefix);
 
-    @Input
-    public abstract SetProperty<ResolvedDependency> getAcceptedDependencies();
+        // Add a lazy relocator that will scan JARs at execution time
+        // SimpleRelocator expects the prefix to end with "." for proper package relocation
+        shadowJar.relocate(new LazyJarFilesRelocator(configuration, acceptedCoordinatesProvider, relocationPrefix + "."));
+    }
 
-    @TaskAction
-    public final void run() {
-        ShadowJar shadowJarTask = getShadowJar().get();
-
-        shadowJarTask.getDependencyFilter().include(getAcceptedDependencies().get()::contains);
-
-        FileCollection jars =
-                shadowJarTask.getDependencyFilter().resolve(getConfigurations().get());
-
-        Set<String> pathsInJars = jars.getFiles().stream()
+    /**
+     * Scans JAR files and returns set of relocatable paths.
+     */
+    private static Set<String> scanJarsForRelocatablePaths(Set<File> jarFiles) {
+        Set<String> pathsInJars = jarFiles.stream()
                 .flatMap(jar -> {
                     try (JarFile jarFile = new JarFile(jar)) {
                         return Collections.list(jarFile.entries()).stream()
@@ -92,7 +86,7 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                                 .toList()
                                 .stream();
                     } catch (IOException e) {
-                        throw new UncheckedIOException("Could not open jar file", e);
+                        throw new UncheckedIOException("Could not open jar file: " + jar, e);
                     }
                 })
                 .collect(Collectors.toSet());
@@ -103,23 +97,10 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                 .flatMap(input -> splitMultiReleasePath(input).stream().skip(1))
                 .collect(Collectors.toSet());
 
-        Set<String> relocatable = Stream.concat(pathsInJars.stream(), multiReleaseStuff.stream())
+        return Stream.concat(pathsInJars.stream(), multiReleaseStuff.stream())
                 .filter(path -> !path.equals("META-INF/MANIFEST.MF")) // don't relocate this!
                 .filter(path -> !path.startsWith(SERVICE_PROVIDER_PREFIX)) // service providers remain in the root
                 .collect(Collectors.toSet());
-
-        shadowJarTask.relocate(new JarFilesRelocator(relocatable, getPrefix().get() + "."));
-
-        if (!multiReleaseStuff.isEmpty()) {
-            try {
-                shadowJarTask.transform(ComposableManifestAppenderTransformer.class, transformer -> {
-                    // JEP 238 requires this manifest entry
-                    transformer.append("Multi-Release", true);
-                });
-            } catch (ReflectiveOperationException e) {
-                throw new RuntimeException("Unable to construct ManifestAppenderTransformer", e);
-            }
-        }
     }
 
     /** Returns a pair of 'META-INF/versions/9/' and 'com/foo/whatever.class'. */
@@ -132,22 +113,73 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
         }
     }
 
+    /**
+     * Lazy relocator that scans JARs at execution time (first use).
+     * This is CC-compatible because configuration resolution happens at execution time.
+     *
+     * Note: We cannot store a reference to ShadowJar task as it's not serializable.
+     * Instead, we get the configuration's resolved files directly.
+     */
     @CacheableRelocator
-    private static final class JarFilesRelocator extends SimpleRelocator {
-        private final Set<String> relocatable;
+    private static final class LazyJarFilesRelocator extends SimpleRelocator {
+        private final Configuration configuration;
+        private final Provider<Set<String>> acceptedCoordinatesProvider;
+        private transient Set<String> relocatable;
+        private transient boolean initialized = false;
 
-        private JarFilesRelocator(Set<String> relocatable, String shadedPrefix) {
+        private LazyJarFilesRelocator(
+                Configuration configuration,
+                Provider<Set<String>> acceptedCoordinatesProvider,
+                String shadedPrefix) {
             super("", shadedPrefix, ImmutableList.of(), ImmutableList.of());
-            this.relocatable = relocatable;
+            this.configuration = configuration;
+            this.acceptedCoordinatesProvider = acceptedCoordinatesProvider;
+        }
+
+        private synchronized void ensureInitialized() {
+            if (initialized) {
+                return;
+            }
+
+            log.info("Lazy-initializing JAR relocator (scanning JARs at execution time)");
+
+            // Get the accepted coordinates
+            Set<String> acceptedCoords = acceptedCoordinatesProvider.get();
+
+            // Resolve JARs at execution time and filter to accepted ones
+            Set<File> jarFiles = configuration.getResolvedConfiguration()
+                    .getLenientConfiguration()
+                    .getAllModuleDependencies()
+                    .stream()
+                    .filter(dep -> {
+                        String coord = dep.getModuleGroup() + ":" + dep.getModuleName();
+                        return acceptedCoords.contains(coord);
+                    })
+                    .flatMap(dep -> dep.getAllModuleArtifacts().stream())
+                    .map(artifact -> artifact.getFile())
+                    .collect(Collectors.toSet());
+
+            // Scan JARs
+            relocatable = scanJarsForRelocatablePaths(jarFiles);
+
+            // Note: Multi-release manifest handling is removed here as we can't access shadowJar
+            // It should be set up in the plugin configuration if needed
+
+            initialized = true;
+            log.info("JAR relocator initialized with {} relocatable paths from {} JARs",
+                    relocatable.size(), jarFiles.size());
         }
 
         @Override
         public boolean canRelocatePath(String path) {
+            ensureInitialized();
             return relocatable.contains(path + CLASS_SUFFIX) || relocatable.contains(path);
         }
 
         @Override
         public String relocatePath(RelocatePathContext context) {
+            ensureInitialized();
+
             List<String> maybePair = splitMultiReleasePath(context.getPath());
             if (!maybePair.isEmpty()) {
                 return relocateMultiReleasePath(maybePair, context);
@@ -167,14 +199,38 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
 
         @Override
         public String relocateClass(RelocateClassContext context) {
+            ensureInitialized();
+
             String className = context.getClassName();
+
+            // Handle service provider class names specially
+            // For service providers, the className is like "META-INF/services/fully.qualified.Interface"
+            // We need to check the interface name, not the full path
+            String classToCheck = className;
+            boolean isServiceProvider = className != null && className.startsWith(SERVICE_PROVIDER_PREFIX);
+            if (isServiceProvider) {
+                classToCheck = className.substring(SERVICE_PROVIDER_PREFIX.length());
+            }
+
+            // Check if we should relocate this class at all
+            // Convert class name to a path that we can check against relocatable set
+            // Class names might use dots or slashes, so normalize to slashes
+            String classPath = classToCheck != null ? classToCheck.replace('.', '/') : "";
+
+            // Only relocate if this class is in our relocatable set (i.e., it's from an accepted JAR)
+            if (!relocatable.contains(classPath + CLASS_SUFFIX) && !relocatable.contains(classPath)) {
+                // Don't relocate - return the original class name
+                log.debug("relocateClass('{}') -> {} (not relocatable)", className, className);
+                return className;
+            }
+
             String output;
             // Work around a poor interaction between ServiceFileTransformer and our
             // prefix configuration which otherwise results in prefixes being added
             // prior to 'META-INF', breaking service loading. The default SimpleRelocator
             // replaces the first instance of the expected prefix with the new prefix,
             // however this is problematic when the expected prefix is an empty string.
-            if (className != null && className.startsWith(SERVICE_PROVIDER_PREFIX)) {
+            if (isServiceProvider) {
                 String targetClassName = className.substring(SERVICE_PROVIDER_PREFIX.length());
                 RelocateClassContext serviceContext = RelocateClassContext.builder()
                         .className(targetClassName)

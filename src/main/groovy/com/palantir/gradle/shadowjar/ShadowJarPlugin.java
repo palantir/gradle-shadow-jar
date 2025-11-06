@@ -20,6 +20,7 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import java.io.File;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
@@ -179,38 +180,54 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
             Set<ResolvedDependency> acceptedModules = Sets.difference(onlyShadedModules, transitivelyRejectedModules);
 
+            // Convert to serializable form for configuration cache
             return ImmutableShadowingCalculation.builder()
-                    .acceptedShadedModules(acceptedModules)
-                    .rejectedShadedModules(highestLevelRejectedModulesThatArentDirectlyListed)
+                    .acceptedShadedModules(acceptedModules.stream()
+                            .map(ModuleDependencyInfo::from)
+                            .collect(Collectors.toSet()))
+                    .rejectedShadedModules(highestLevelRejectedModulesThatArentDirectlyListed.stream()
+                            .map(ModuleDependencyInfo::from)
+                            .collect(Collectors.toSet()))
                     .build();
         });
 
         rejectedFromShading
                 .getDependencies()
                 .addAllLater(shadowingCalculation.map(calc -> calc.rejectedShadedModules().stream()
-                        .map(this::depToString)
+                        .map(ModuleDependencyInfo::coordinates)
                         .map(project.getDependencies()::create)
                         .collect(Collectors.toSet())));
 
-        TaskProvider<ShadowJarConfigurationTask> shadowJarConfigurationTask = project.getTasks()
-                .register("relocateShadowJar", ShadowJarConfigurationTask.class, relocateTask -> {
-                    relocateTask.getShadowJar().set(shadowJarProvider);
+        // Configure shadow jar - must wait until after evaluation for group to be set
+        project.afterEvaluate(_p -> {
+            shadowJarProvider.configure(shadowJar -> {
+                // Set configurations
+                shadowJar.setConfigurations(Collections.singletonList(shadeTransitively));
 
-                    relocateTask.getConfigurations().set(Collections.singletonList(shadeTransitively));
+                // Calculate relocation prefix - group is now guaranteed to be set
+                String relocationPrefix = String.join(".", "shadow", project.getGroup().toString(), project.getName())
+                        .replace('-', '_')
+                        .toLowerCase(Locale.US);
 
-                    relocateTask.getPrefix().set(project.provider(() -> String.join(
-                                    ".", "shadow", project.getGroup().toString(), project.getName())
-                            .replace('-', '_')
-                            .toLowerCase(Locale.US)));
+                // Create lazy provider for accepted coordinates
+                // This will only resolve at execution time when the filter is evaluated
+                Provider<Set<String>> acceptedCoordsProvider = shadowingCalculation.map(calculation ->
+                        calculation.acceptedShadedModules().stream()
+                                .map(ModuleDependencyInfo::coordinates)
+                                .collect(Collectors.toSet()));
 
-                    relocateTask
-                            .getAcceptedDependencies()
-                            .set(shadowingCalculation.map(ShadowingCalculation::acceptedShadedModules));
+                // Configure dependency filter with lazy provider
+                // The provider is evaluated at execution time, not configuration time
+                shadowJar.getDependencyFilter().include(dependency -> {
+                    String coord = dependency.getModuleGroup() + ":" + dependency.getModuleName();
+                    // This .get() happens at execution time, which is allowed
+                    return acceptedCoordsProvider.get().contains(coord);
                 });
 
-        shadowJarProvider.configure(shadowJar -> {
-            shadowJar.dependsOn(shadowJarConfigurationTask);
-            shadowJar.setConfigurations(Collections.singletonList(shadeTransitively));
+                // Configure lazy relocation - JAR scanning happens at execution time
+                JarRelocationConfigurer.configureShadowJarRelocation(
+                        shadowJar, shadeTransitively, acceptedCoordsProvider, relocationPrefix);
+            });
         });
     }
 
@@ -235,14 +252,11 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
     @Value.Immutable
     interface ShadowingCalculation {
-        Set<ResolvedDependency> acceptedShadedModules();
+        Set<ModuleDependencyInfo> acceptedShadedModules();
 
-        Set<ResolvedDependency> rejectedShadedModules();
+        Set<ModuleDependencyInfo> rejectedShadedModules();
     }
 
-    private String depToString(ResolvedDependency resolvedDependency) {
-        return String.format("%s:%s", resolvedDependency.getModuleGroup(), resolvedDependency.getModuleName());
-    }
 
     private static void ensureShadowJarHasDefaultClassifierThatDoesNotClashWithTheRegularJarTask(
             Project project, TaskProvider<ShadowJar> shadowJarProvider) {
