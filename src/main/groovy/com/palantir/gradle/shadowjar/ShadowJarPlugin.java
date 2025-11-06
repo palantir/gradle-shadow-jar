@@ -20,7 +20,6 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import java.io.File;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
@@ -198,37 +197,24 @@ public class ShadowJarPlugin implements Plugin<Project> {
                         .map(project.getDependencies()::create)
                         .collect(Collectors.toSet())));
 
-        // Configure shadow jar - must wait until after evaluation for group to be set
-        project.afterEvaluate(_p -> {
-            shadowJarProvider.configure(shadowJar -> {
-                // Set configurations
-                shadowJar.setConfigurations(Collections.singletonList(shadeTransitively));
+        shadowJarProvider.configure(shadowJar -> {
+            shadowJar.setConfigurations(Collections.singletonList(shadeTransitively));
 
-                // Calculate relocation prefix - group is now guaranteed to be set
-                String relocationPrefix = String.join(".", "shadow", project.getGroup().toString(), project.getName())
-                        .replace('-', '_')
-                        .toLowerCase(Locale.US);
+            String relocationPrefix = String.join(
+                            ".", "shadow", project.getGroup().toString(), project.getName())
+                    .replace('-', '_')
+                    .toLowerCase(Locale.US);
 
-                // Create lazy provider for accepted modules (as ModuleDependencyInfo)
-                // This will only resolve at execution time when the filter is evaluated
-                Provider<Set<ModuleDependencyInfo>> acceptedModulesProvider =
-                        shadowingCalculation.map(ShadowingCalculation::acceptedShadedModules);
+            Provider<Set<ModuleDependencyInfo>> acceptedModulesProvider =
+                    shadowingCalculation.map(ShadowingCalculation::acceptedShadedModules);
 
-                // Configure dependency filter with lazy provider
-                // The provider is evaluated at execution time, not configuration time
-                // We need to compare by coordinates since ResolvedDependency object identity won't work
-                // after configuration cache deserialization
-                shadowJar.getDependencyFilter().include(dependency -> {
-                    String coord = dependency.getModuleGroup() + ":" + dependency.getModuleName();
-                    // This .get() happens at execution time, which is allowed
-                    return acceptedModulesProvider.get().stream()
-                            .anyMatch(accepted -> accepted.coordinates().equals(coord));
-                });
-
-                // Configure lazy relocation - JAR scanning happens at execution time
-                JarRelocationConfigurer.configureShadowJarRelocation(
-                        shadowJar, shadeTransitively, relocationPrefix);
+            shadowJar.getDependencyFilter().include(dependency -> {
+                String coord = dependency.getModuleGroup() + ":" + dependency.getModuleName();
+                return acceptedModulesProvider.get().stream()
+                        .anyMatch(accepted -> accepted.coordinates().equals(coord));
             });
+
+            JarRelocationConfigurer.configureShadowJarRelocation(shadowJar, relocationPrefix);
         });
     }
 
@@ -257,7 +243,6 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
         Set<ModuleDependencyInfo> rejectedShadedModules();
     }
-
 
     private static void ensureShadowJarHasDefaultClassifierThatDoesNotClashWithTheRegularJarTask(
             Project project, TaskProvider<ShadowJar> shadowJarProvider) {

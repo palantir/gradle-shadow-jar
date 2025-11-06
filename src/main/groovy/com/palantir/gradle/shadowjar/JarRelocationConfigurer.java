@@ -35,9 +35,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
-import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.file.FileCollection;
-import org.gradle.api.provider.Provider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,19 +56,16 @@ final class JarRelocationConfigurer {
      * This is called at configuration time but JAR scanning happens at execution time.
      */
     static void configureShadowJarRelocation(
-            ShadowJar shadowJar, Configuration configuration, String relocationPrefix) {
+            ShadowJar shadowJar, String relocationPrefix) {
 
         log.info("Configuring shadow jar relocation with prefix '{}'", relocationPrefix);
 
-        // Create a provider that resolves JARs and scans them at execution time
-        Provider<Set<String>> relocatableProvider = shadowJar.getProject().provider(() -> {
-            Set<File> jarFiles = shadowJar.getDependencyFilter()
-                    .resolve(shadowJar.getConfigurations())
-                    .getFiles();
-            return scanJarsForRelocatablePaths(jarFiles);
-        });
+        Set<File> jarFiles = shadowJar
+                .getDependencyFilter()
+                .resolve(shadowJar.getConfigurations())
+                .getFiles();
+        Set<String> relocatableProvider = scanJarsForRelocatablePaths(jarFiles);
 
-        // Add relocator - SimpleRelocator expects the prefix to end with "." for proper package relocation
         shadowJar.relocate(new JarFilesRelocator(relocatableProvider, relocationPrefix + "."));
     }
 
@@ -118,62 +112,60 @@ final class JarRelocationConfigurer {
         }
     }
 
-    /**
-     * Relocator that lazily resolves relocatable paths at execution time.
-     * CC-compatible because it stores a Provider (serializable) which resolves at execution time.
-     */
     @CacheableRelocator
     private static final class JarFilesRelocator extends SimpleRelocator {
-        private final Provider<Set<String>> relocatableProvider;
-        private transient Set<String> relocatable;
+        private final Set<String> relocatable;
 
-        private JarFilesRelocator(Provider<Set<String>> relocatableProvider, String shadedPrefix) {
+        private JarFilesRelocator(Set<String> relocatable, String shadedPrefix) {
             super("", shadedPrefix, ImmutableList.of(), ImmutableList.of());
-            this.relocatableProvider = relocatableProvider;
-        }
-
-        private Set<String> getRelocatable() {
-            if (relocatable == null) {
-                relocatable = relocatableProvider.get();
-                log.info("Initialized relocator with {} relocatable paths", relocatable.size());
-            }
-            return relocatable;
+            this.relocatable = relocatable;
         }
 
         @Override
         public boolean canRelocatePath(String path) {
-            Set<String> paths = getRelocatable();
-            return paths.contains(path + CLASS_SUFFIX) || paths.contains(path);
+            return relocatable.contains(path + CLASS_SUFFIX) || relocatable.contains(path);
         }
 
         @Override
         public String relocatePath(RelocatePathContext context) {
-            getRelocatable(); // Ensure initialized
-
             List<String> maybePair = splitMultiReleasePath(context.getPath());
             if (!maybePair.isEmpty()) {
-                context.setPath(maybePair.get(1));
-                return maybePair.get(0) + super.relocatePath(context);
+                return relocateMultiReleasePath(maybePair, context);
             }
 
-            return super.relocatePath(context);
+            String output = super.relocatePath(context);
+            log.debug("relocatePath('{}') -> {}", context.getPath(), output);
+            return output;
+        }
+
+        private String relocateMultiReleasePath(List<String> pair, RelocatePathContext context) {
+            context.setPath(pair.get(1));
+            String out = pair.get(0) + super.relocatePath(context);
+            log.debug("relocateMultiReleasePath('{}') -> {}", context.getPath(), out);
+            return out;
         }
 
         @Override
         public String relocateClass(RelocateClassContext context) {
-            getRelocatable(); // Ensure initialized
-
             String className = context.getClassName();
-            // Handle META-INF/services prefix specially to avoid double-prefixing
+            String output;
+            // Work around a poor interaction between ServiceFileTransformer and our
+            // prefix configuration which otherwise results in prefixes being added
+            // prior to 'META-INF', breaking service loading. The default SimpleRelocator
+            // replaces the first instance of the expected prefix with the new prefix,
+            // however this is problematic when the expected prefix is an empty string.
             if (className != null && className.startsWith(SERVICE_PROVIDER_PREFIX)) {
                 String targetClassName = className.substring(SERVICE_PROVIDER_PREFIX.length());
                 RelocateClassContext serviceContext = RelocateClassContext.builder()
                         .className(targetClassName)
                         .stats(context.getStats())
                         .build();
-                return SERVICE_PROVIDER_PREFIX + super.relocateClass(serviceContext);
+                output = SERVICE_PROVIDER_PREFIX + super.relocateClass(serviceContext);
+            } else {
+                output = super.relocateClass(context);
             }
-            return super.relocateClass(context);
+            log.debug("relocateClass('{}') -> {}", context.getClassName(), output);
+            return output;
         }
     }
 }
