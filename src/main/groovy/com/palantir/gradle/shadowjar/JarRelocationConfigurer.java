@@ -120,94 +120,63 @@ final class JarRelocationConfigurer {
     }
 
     /**
-     * Lazy relocator that scans JARs at execution time (first use).
-     * This is CC-compatible because it stores a Provider, which is serializable.
-     * JAR scanning happens at execution time when the relocator is first used.
-     *
-     * IMPORTANT: This relocator scans ALL files from the configuration.
-     * The dependency filter must be set on the ShadowJar task to control which
-     * dependencies are included in the JAR.
+     * Relocator that scans JARs at execution time (on first use).
+     * CC-compatible because it stores a Provider (serializable) and scans lazily at execution time.
      */
     @CacheableRelocator
     private static final class LazyJarFilesRelocator extends SimpleRelocator {
         private final Provider<Set<File>> jarsProvider;
         private transient Set<String> relocatable;
-        private transient boolean initialized = false;
 
         private LazyJarFilesRelocator(Provider<Set<File>> jarsProvider, String shadedPrefix) {
             super("", shadedPrefix, ImmutableList.of(), ImmutableList.of());
             this.jarsProvider = jarsProvider;
         }
 
-        private synchronized void ensureInitialized() {
-            if (initialized) {
-                return;
+        private Set<String> getRelocatable() {
+            if (relocatable == null) {
+                log.info("Scanning JARs for relocatable paths");
+                Set<File> jarFiles = jarsProvider.get();
+                relocatable = scanJarsForRelocatablePaths(jarFiles);
+                log.info("Found {} relocatable paths in {} JARs", relocatable.size(), jarFiles.size());
             }
-
-            log.info("Lazy-initializing JAR relocator (scanning JARs at execution time)");
-
-            // Resolve JAR files from the provider at execution time
-            Set<File> jarFiles = jarsProvider.get();
-
-            // Scan JARs to build the relocatable paths set
-            relocatable = scanJarsForRelocatablePaths(jarFiles);
-
-            initialized = true;
-            log.info(
-                    "JAR relocator initialized with {} relocatable paths from {} JARs",
-                    relocatable.size(), jarFiles.size());
+            return relocatable;
         }
 
         @Override
         public boolean canRelocatePath(String path) {
-            ensureInitialized();
-            return relocatable.contains(path + CLASS_SUFFIX) || relocatable.contains(path);
+            Set<String> paths = getRelocatable();
+            return paths.contains(path + CLASS_SUFFIX) || paths.contains(path);
         }
 
         @Override
         public String relocatePath(RelocatePathContext context) {
-            ensureInitialized();
+            getRelocatable(); // Ensure initialized
 
             List<String> maybePair = splitMultiReleasePath(context.getPath());
             if (!maybePair.isEmpty()) {
-                return relocateMultiReleasePath(maybePair, context);
+                context.setPath(maybePair.get(1));
+                return maybePair.get(0) + super.relocatePath(context);
             }
 
-            String output = super.relocatePath(context);
-            log.debug("relocatePath('{}') -> {}", context.getPath(), output);
-            return output;
-        }
-
-        private String relocateMultiReleasePath(List<String> pair, RelocatePathContext context) {
-            context.setPath(pair.get(1));
-            String out = pair.get(0) + super.relocatePath(context);
-            log.debug("relocateMultiReleasePath('{}') -> {}", context.getPath(), out);
-            return out;
+            return super.relocatePath(context);
         }
 
         @Override
         public String relocateClass(RelocateClassContext context) {
-            ensureInitialized();
+            getRelocatable(); // Ensure initialized
 
             String className = context.getClassName();
-            String output;
-            // Work around a poor interaction between ServiceFileTransformer and our
-            // prefix configuration which otherwise results in prefixes being added
-            // prior to 'META-INF', breaking service loading. The default SimpleRelocator
-            // replaces the first instance of the expected prefix with the new prefix,
-            // however this is problematic when the expected prefix is an empty string.
+            // Handle META-INF/services prefix specially to avoid double-prefixing
             if (className != null && className.startsWith(SERVICE_PROVIDER_PREFIX)) {
                 String targetClassName = className.substring(SERVICE_PROVIDER_PREFIX.length());
                 RelocateClassContext serviceContext = RelocateClassContext.builder()
                         .className(targetClassName)
                         .stats(context.getStats())
                         .build();
-                output = SERVICE_PROVIDER_PREFIX + super.relocateClass(serviceContext);
-            } else {
-                output = super.relocateClass(context);
+                return SERVICE_PROVIDER_PREFIX + super.relocateClass(serviceContext);
             }
-            log.debug("relocateClass('{}') -> {}", context.getClassName(), output);
-            return output;
+            return super.relocateClass(context);
         }
     }
 }
