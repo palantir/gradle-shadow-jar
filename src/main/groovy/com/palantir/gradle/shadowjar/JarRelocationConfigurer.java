@@ -67,6 +67,21 @@ final class JarRelocationConfigurer {
         Set<String> relocatableProvider = scanJarsForRelocatablePaths(jarFiles);
 
         shadowJar.relocate(new JarFilesRelocator(relocatableProvider, relocationPrefix + "."));
+
+        // Check if any JARs contain multi-release content
+        boolean hasMultiReleaseContent = jarFiles.stream()
+                .anyMatch(JarRelocationConfigurer::containsMultiReleaseContent);
+
+        if (hasMultiReleaseContent) {
+            try {
+                shadowJar.transform(ComposableManifestAppenderTransformer.class, transformer -> {
+                    // JEP 238 requires this manifest entry
+                    transformer.append("Multi-Release", true);
+                });
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException("Unable to construct ManifestAppenderTransformer", e);
+            }
+        }
     }
 
     /**
@@ -100,6 +115,20 @@ final class JarRelocationConfigurer {
                 .filter(path -> !path.equals("META-INF/MANIFEST.MF")) // don't relocate this!
                 .filter(path -> !path.startsWith(SERVICE_PROVIDER_PREFIX)) // service providers remain in the root
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Checks if a JAR file contains multi-release versioned content.
+     */
+    private static boolean containsMultiReleaseContent(File jarFile) {
+        try (JarFile jar = new JarFile(jarFile)) {
+            return Collections.list(jar.entries()).stream()
+                    .map(ZipEntry::getName)
+                    .anyMatch(name -> MULTIRELEASE_JAR_PREFIX.matcher(name).find());
+        } catch (IOException e) {
+            log.warn("Failed to check for multi-release content in JAR: {}", jarFile, e);
+            return false;
+        }
     }
 
     /** Returns a pair of 'META-INF/versions/9/' and 'com/foo/whatever.class'. */
