@@ -19,7 +19,6 @@ package com.palantir.gradle.shadowjar
 import com.palantir.gradle.plugintesting.ConfigurationCacheSpec
 import groovy.transform.CompileStatic
 import groovy.xml.XmlUtil
-import nebula.test.IntegrationTestKitSpec
 import org.gradle.testkit.runner.BuildResult
 
 import java.nio.charset.StandardCharsets
@@ -572,7 +571,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
     @CompileStatic
     private BuildResult runTasksAndCheckSuccess(String... args) {
-        BuildResult result = runTasksWithConfigurationCache((['--warning-mode=none', '--write-locks'] as String[]) + args)
+        BuildResult result = runTasks((['--warning-mode=none', '--write-locks'] as String[]) + args)
         println result.output
 
         return result
