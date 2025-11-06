@@ -56,24 +56,23 @@ final class JarRelocationConfigurer {
 
     /**
      * Configures relocation for the shadow jar with lazy JAR scanning.
-     * This is called at configuration time but JAR scanning happens lazily at execution time.
+     * This is called at configuration time but JAR scanning happens at execution time.
      */
     static void configureShadowJarRelocation(
             ShadowJar shadowJar, Configuration configuration, String relocationPrefix) {
 
         log.info("Configuring shadow jar relocation with prefix '{}'", relocationPrefix);
 
-        // Create a provider that uses the dependency filter to resolve which JARs to scan
-        // This is evaluated at execution time, respecting the filter configuration
-        Provider<Set<File>> jarsProvider = shadowJar.getProject().provider(() -> {
-            return shadowJar.getDependencyFilter()
+        // Create a provider that resolves JARs and scans them at execution time
+        Provider<Set<String>> relocatableProvider = shadowJar.getProject().provider(() -> {
+            Set<File> jarFiles = shadowJar.getDependencyFilter()
                     .resolve(shadowJar.getConfigurations())
                     .getFiles();
+            return scanJarsForRelocatablePaths(jarFiles);
         });
 
-        // Add a lazy relocator that will scan JARs at execution time
-        // SimpleRelocator expects the prefix to end with "." for proper package relocation
-        shadowJar.relocate(new LazyJarFilesRelocator(jarsProvider, relocationPrefix + "."));
+        // Add relocator - SimpleRelocator expects the prefix to end with "." for proper package relocation
+        shadowJar.relocate(new JarFilesRelocator(relocatableProvider, relocationPrefix + "."));
     }
 
     /**
@@ -120,25 +119,23 @@ final class JarRelocationConfigurer {
     }
 
     /**
-     * Relocator that scans JARs at execution time (on first use).
-     * CC-compatible because it stores a Provider (serializable) and scans lazily at execution time.
+     * Relocator that lazily resolves relocatable paths at execution time.
+     * CC-compatible because it stores a Provider (serializable) which resolves at execution time.
      */
     @CacheableRelocator
-    private static final class LazyJarFilesRelocator extends SimpleRelocator {
-        private final Provider<Set<File>> jarsProvider;
+    private static final class JarFilesRelocator extends SimpleRelocator {
+        private final Provider<Set<String>> relocatableProvider;
         private transient Set<String> relocatable;
 
-        private LazyJarFilesRelocator(Provider<Set<File>> jarsProvider, String shadedPrefix) {
+        private JarFilesRelocator(Provider<Set<String>> relocatableProvider, String shadedPrefix) {
             super("", shadedPrefix, ImmutableList.of(), ImmutableList.of());
-            this.jarsProvider = jarsProvider;
+            this.relocatableProvider = relocatableProvider;
         }
 
         private Set<String> getRelocatable() {
             if (relocatable == null) {
-                log.info("Scanning JARs for relocatable paths");
-                Set<File> jarFiles = jarsProvider.get();
-                relocatable = scanJarsForRelocatablePaths(jarFiles);
-                log.info("Found {} relocatable paths in {} JARs", relocatable.size(), jarFiles.size());
+                relocatable = relocatableProvider.get();
+                log.info("Initialized relocator with {} relocatable paths", relocatable.size());
             }
             return relocatable;
         }
