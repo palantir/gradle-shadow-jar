@@ -475,15 +475,12 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             dependencies {
                 shadeTransitively 'org.apiguardian:apiguardian-api:1.1.0'
             }
-            
+
             // This replicates what the 'com.palantir.sls-recommended-dependencies' plugin does
-            task addManifestItem {
-                doFirst {
-                    jar.manifest.attributes('Foo': 'Bar')
-                }
+            // Using configuration-time wiring for CC compatibility
+            tasks.named('jar', Jar).configure { jarTask ->
+                jarTask.manifest.attributes('Foo': 'Bar')
             }
-            
-            jar.dependsOn addManifestItem
         '''
 
         when:
@@ -508,10 +505,12 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             dependencies {
                 shadeTransitively 'org.slf4j:slf4j-log4j12:1.7.26'
             }
-            
-            task printRuntimeClasspath {
+
+            // Use simple task to just print files on classpath (CC-compatible)
+            tasks.register('printRuntimeClasspath') {
+                def files = configurations.runtimeClasspath.incoming.artifactView {}.files
                 doLast {
-                    println configurations.runtimeClasspath.incoming.resolutionResult.allDependencies.collect { it }
+                    println files.collect { it.name }
                 }
             }
         '''.stripIndent(true)
@@ -520,7 +519,8 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         def output = runTasksAndCheckSuccess('printRuntimeClasspath').output
 
         then:
-        output.contains('org.slf4j:slf4j-log4j12:1.7.30')
+        // The output now shows JAR filenames with versions instead of coordinates
+        output.contains('slf4j-log4j12-1.7.30.jar')
     }
 
     def 'checkUnusedConstraints runs correctly'() {
