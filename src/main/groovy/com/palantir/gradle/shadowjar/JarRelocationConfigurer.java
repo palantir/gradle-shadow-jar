@@ -52,25 +52,29 @@ final class JarRelocationConfigurer {
     private JarRelocationConfigurer() {}
 
     /**
-     * Configures relocation for the shadow jar with lazy JAR scanning.
-     * This is called at configuration time but JAR scanning happens at execution time.
+     * Configures relocation for the shadow jar.
+     * JAR scanning happens at configuration time and results are passed to the relocator.
      */
-    static void configureShadowJarRelocation(
-            ShadowJar shadowJar, String relocationPrefix) {
-
-        log.info("Configuring shadow jar relocation with prefix '{}'", relocationPrefix);
-
+    static void configureShadowJarRelocation(ShadowJar shadowJar, String relocationPrefix) {
         Set<File> jarFiles = shadowJar
                 .getDependencyFilter()
                 .resolve(shadowJar.getConfigurations())
                 .getFiles();
-        Set<String> relocatableProvider = scanJarsForRelocatablePaths(jarFiles);
 
-        shadowJar.relocate(new JarFilesRelocator(relocatableProvider, relocationPrefix + "."));
+        Set<String> relocatable = scanJarsForRelocatablePaths(jarFiles);
+        shadowJar.relocate(new JarFilesRelocator(relocatable, relocationPrefix + "."));
 
-        // Check if any JARs contain multi-release content
-        boolean hasMultiReleaseContent = jarFiles.stream()
-                .anyMatch(JarRelocationConfigurer::containsMultiReleaseContent);
+        // Check for multi-release content and add manifest transformer if needed
+        boolean hasMultiReleaseContent = jarFiles.stream().anyMatch(jarFile -> {
+            try (JarFile jar = new JarFile(jarFile)) {
+                return Collections.list(jar.entries()).stream()
+                        .map(ZipEntry::getName)
+                        .anyMatch(name -> MULTIRELEASE_JAR_PREFIX.matcher(name).find());
+            } catch (IOException e) {
+                log.warn("Failed to check for multi-release content in JAR: {}", jarFile, e);
+                return false;
+            }
+        });
 
         if (hasMultiReleaseContent) {
             try {
@@ -115,20 +119,6 @@ final class JarRelocationConfigurer {
                 .filter(path -> !path.equals("META-INF/MANIFEST.MF")) // don't relocate this!
                 .filter(path -> !path.startsWith(SERVICE_PROVIDER_PREFIX)) // service providers remain in the root
                 .collect(Collectors.toSet());
-    }
-
-    /**
-     * Checks if a JAR file contains multi-release versioned content.
-     */
-    private static boolean containsMultiReleaseContent(File jarFile) {
-        try (JarFile jar = new JarFile(jarFile)) {
-            return Collections.list(jar.entries()).stream()
-                    .map(ZipEntry::getName)
-                    .anyMatch(name -> MULTIRELEASE_JAR_PREFIX.matcher(name).find());
-        } catch (IOException e) {
-            log.warn("Failed to check for multi-release content in JAR: {}", jarFile, e);
-            return false;
-        }
     }
 
     /** Returns a pair of 'META-INF/versions/9/' and 'com/foo/whatever.class'. */
