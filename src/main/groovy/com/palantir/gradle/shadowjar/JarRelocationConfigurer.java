@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.provider.Provider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,13 +58,22 @@ final class JarRelocationConfigurer {
      * Configures relocation for the shadow jar with lazy JAR scanning.
      * This is called at configuration time but JAR scanning happens lazily at execution time.
      */
-    static void configureShadowJarRelocation(ShadowJar shadowJar, Configuration configuration, String relocationPrefix) {
+    static void configureShadowJarRelocation(
+            ShadowJar shadowJar, Configuration configuration, String relocationPrefix) {
 
         log.info("Configuring shadow jar relocation with prefix '{}'", relocationPrefix);
 
+        // Create a provider that uses the dependency filter to resolve which JARs to scan
+        // This is evaluated at execution time, respecting the filter configuration
+        Provider<Set<File>> jarsProvider = shadowJar.getProject().provider(() -> {
+            return shadowJar.getDependencyFilter()
+                    .resolve(shadowJar.getConfigurations())
+                    .getFiles();
+        });
+
         // Add a lazy relocator that will scan JARs at execution time
         // SimpleRelocator expects the prefix to end with "." for proper package relocation
-        shadowJar.relocate(new LazyJarFilesRelocator(shadowJar, relocationPrefix + "."));
+        shadowJar.relocate(new LazyJarFilesRelocator(jarsProvider, relocationPrefix + "."));
     }
 
     /**
@@ -111,18 +121,22 @@ final class JarRelocationConfigurer {
 
     /**
      * Lazy relocator that scans JARs at execution time (first use).
-     * This is CC-compatible because the ShadowJar task and its dependency filter are serializable.
+     * This is CC-compatible because it stores a Provider, which is serializable.
      * JAR scanning happens at execution time when the relocator is first used.
+     *
+     * IMPORTANT: This relocator scans ALL files from the configuration.
+     * The dependency filter must be set on the ShadowJar task to control which
+     * dependencies are included in the JAR.
      */
     @CacheableRelocator
     private static final class LazyJarFilesRelocator extends SimpleRelocator {
-        private final ShadowJar shadowJar;
+        private final Provider<Set<File>> jarsProvider;
         private transient Set<String> relocatable;
         private transient boolean initialized = false;
 
-        private LazyJarFilesRelocator(ShadowJar shadowJar, String shadedPrefix) {
+        private LazyJarFilesRelocator(Provider<Set<File>> jarsProvider, String shadedPrefix) {
             super("", shadedPrefix, ImmutableList.of(), ImmutableList.of());
-            this.shadowJar = shadowJar;
+            this.jarsProvider = jarsProvider;
         }
 
         private synchronized void ensureInitialized() {
@@ -132,30 +146,11 @@ final class JarRelocationConfigurer {
 
             log.info("Lazy-initializing JAR relocator (scanning JARs at execution time)");
 
-            // Use the dependency filter to resolve which JARs to scan
-            // This respects the filter configuration set in the plugin
-            Set<File> jarFiles = shadowJar.getDependencyFilter()
-                    .resolve(shadowJar.getConfigurations())
-                    .getFiles();
+            // Resolve JAR files from the provider at execution time
+            Set<File> jarFiles = jarsProvider.get();
 
             // Scan JARs to build the relocatable paths set
             relocatable = scanJarsForRelocatablePaths(jarFiles);
-
-            // Handle multi-release JARs
-            Set<String> pathsInRelocatable = relocatable.stream()
-                    .flatMap(input -> splitMultiReleasePath(input).stream().skip(1))
-                    .collect(Collectors.toSet());
-
-            if (!pathsInRelocatable.isEmpty()) {
-                try {
-                    shadowJar.transform(ComposableManifestAppenderTransformer.class, transformer -> {
-                        // JEP 238 requires this manifest entry
-                        transformer.append("Multi-Release", true);
-                    });
-                } catch (ReflectiveOperationException e) {
-                    throw new RuntimeException("Unable to construct ManifestAppenderTransformer", e);
-                }
-            }
 
             initialized = true;
             log.info(

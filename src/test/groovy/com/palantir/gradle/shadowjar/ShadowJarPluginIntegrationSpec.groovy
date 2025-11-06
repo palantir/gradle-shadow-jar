@@ -571,7 +571,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
     @CompileStatic
     private BuildResult runTasksAndCheckSuccess(String... args) {
-        BuildResult result = runTasks((['--warning-mode=none', '--write-locks'] as String[]) + args)
+        BuildResult result = runTasksWithConfigurationCache((['--warning-mode=none', '--write-locks'] as String[]) + args)
         println result.output
 
         return result
