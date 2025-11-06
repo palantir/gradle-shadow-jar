@@ -209,24 +209,25 @@ public class ShadowJarPlugin implements Plugin<Project> {
                         .replace('-', '_')
                         .toLowerCase(Locale.US);
 
-                // Create lazy provider for accepted coordinates
+                // Create lazy provider for accepted modules (as ModuleDependencyInfo)
                 // This will only resolve at execution time when the filter is evaluated
-                Provider<Set<String>> acceptedCoordsProvider = shadowingCalculation.map(calculation ->
-                        calculation.acceptedShadedModules().stream()
-                                .map(ModuleDependencyInfo::coordinates)
-                                .collect(Collectors.toSet()));
+                Provider<Set<ModuleDependencyInfo>> acceptedModulesProvider =
+                        shadowingCalculation.map(ShadowingCalculation::acceptedShadedModules);
 
                 // Configure dependency filter with lazy provider
                 // The provider is evaluated at execution time, not configuration time
+                // We need to compare by coordinates since ResolvedDependency object identity won't work
+                // after configuration cache deserialization
                 shadowJar.getDependencyFilter().include(dependency -> {
                     String coord = dependency.getModuleGroup() + ":" + dependency.getModuleName();
                     // This .get() happens at execution time, which is allowed
-                    return acceptedCoordsProvider.get().contains(coord);
+                    return acceptedModulesProvider.get().stream()
+                            .anyMatch(accepted -> accepted.coordinates().equals(coord));
                 });
 
                 // Configure lazy relocation - JAR scanning happens at execution time
                 JarRelocationConfigurer.configureShadowJarRelocation(
-                        shadowJar, shadeTransitively, acceptedCoordsProvider, relocationPrefix);
+                        shadowJar, shadeTransitively, relocationPrefix);
             });
         });
     }

@@ -57,17 +57,13 @@ final class JarRelocationConfigurer {
      * Configures relocation for the shadow jar with lazy JAR scanning.
      * This is called at configuration time but JAR scanning happens lazily at execution time.
      */
-    static void configureShadowJarRelocation(
-            ShadowJar shadowJar,
-            Configuration configuration,
-            Provider<Set<String>> acceptedCoordinatesProvider,
-            String relocationPrefix) {
+    static void configureShadowJarRelocation(ShadowJar shadowJar, Configuration configuration, String relocationPrefix) {
 
         log.info("Configuring shadow jar relocation with prefix '{}'", relocationPrefix);
 
         // Add a lazy relocator that will scan JARs at execution time
         // SimpleRelocator expects the prefix to end with "." for proper package relocation
-        shadowJar.relocate(new LazyJarFilesRelocator(configuration, acceptedCoordinatesProvider, relocationPrefix + "."));
+        shadowJar.relocate(new LazyJarFilesRelocator(shadowJar, relocationPrefix + "."));
     }
 
     /**
@@ -115,25 +111,18 @@ final class JarRelocationConfigurer {
 
     /**
      * Lazy relocator that scans JARs at execution time (first use).
-     * This is CC-compatible because configuration resolution happens at execution time.
-     *
-     * Note: We cannot store a reference to ShadowJar task as it's not serializable.
-     * Instead, we get the configuration's resolved files directly.
+     * This is CC-compatible because the ShadowJar task and its dependency filter are serializable.
+     * JAR scanning happens at execution time when the relocator is first used.
      */
     @CacheableRelocator
     private static final class LazyJarFilesRelocator extends SimpleRelocator {
-        private final Configuration configuration;
-        private final Provider<Set<String>> acceptedCoordinatesProvider;
+        private final ShadowJar shadowJar;
         private transient Set<String> relocatable;
         private transient boolean initialized = false;
 
-        private LazyJarFilesRelocator(
-                Configuration configuration,
-                Provider<Set<String>> acceptedCoordinatesProvider,
-                String shadedPrefix) {
+        private LazyJarFilesRelocator(ShadowJar shadowJar, String shadedPrefix) {
             super("", shadedPrefix, ImmutableList.of(), ImmutableList.of());
-            this.configuration = configuration;
-            this.acceptedCoordinatesProvider = acceptedCoordinatesProvider;
+            this.shadowJar = shadowJar;
         }
 
         private synchronized void ensureInitialized() {
@@ -143,30 +132,34 @@ final class JarRelocationConfigurer {
 
             log.info("Lazy-initializing JAR relocator (scanning JARs at execution time)");
 
-            // Get the accepted coordinates
-            Set<String> acceptedCoords = acceptedCoordinatesProvider.get();
+            // Use the dependency filter to resolve which JARs to scan
+            // This respects the filter configuration set in the plugin
+            Set<File> jarFiles = shadowJar.getDependencyFilter()
+                    .resolve(shadowJar.getConfigurations())
+                    .getFiles();
 
-            // Resolve JARs at execution time and filter to accepted ones
-            Set<File> jarFiles = configuration.getResolvedConfiguration()
-                    .getLenientConfiguration()
-                    .getAllModuleDependencies()
-                    .stream()
-                    .filter(dep -> {
-                        String coord = dep.getModuleGroup() + ":" + dep.getModuleName();
-                        return acceptedCoords.contains(coord);
-                    })
-                    .flatMap(dep -> dep.getAllModuleArtifacts().stream())
-                    .map(artifact -> artifact.getFile())
-                    .collect(Collectors.toSet());
-
-            // Scan JARs
+            // Scan JARs to build the relocatable paths set
             relocatable = scanJarsForRelocatablePaths(jarFiles);
 
-            // Note: Multi-release manifest handling is removed here as we can't access shadowJar
-            // It should be set up in the plugin configuration if needed
+            // Handle multi-release JARs
+            Set<String> pathsInRelocatable = relocatable.stream()
+                    .flatMap(input -> splitMultiReleasePath(input).stream().skip(1))
+                    .collect(Collectors.toSet());
+
+            if (!pathsInRelocatable.isEmpty()) {
+                try {
+                    shadowJar.transform(ComposableManifestAppenderTransformer.class, transformer -> {
+                        // JEP 238 requires this manifest entry
+                        transformer.append("Multi-Release", true);
+                    });
+                } catch (ReflectiveOperationException e) {
+                    throw new RuntimeException("Unable to construct ManifestAppenderTransformer", e);
+                }
+            }
 
             initialized = true;
-            log.info("JAR relocator initialized with {} relocatable paths from {} JARs",
+            log.info(
+                    "JAR relocator initialized with {} relocatable paths from {} JARs",
                     relocatable.size(), jarFiles.size());
         }
 
@@ -202,35 +195,13 @@ final class JarRelocationConfigurer {
             ensureInitialized();
 
             String className = context.getClassName();
-
-            // Handle service provider class names specially
-            // For service providers, the className is like "META-INF/services/fully.qualified.Interface"
-            // We need to check the interface name, not the full path
-            String classToCheck = className;
-            boolean isServiceProvider = className != null && className.startsWith(SERVICE_PROVIDER_PREFIX);
-            if (isServiceProvider) {
-                classToCheck = className.substring(SERVICE_PROVIDER_PREFIX.length());
-            }
-
-            // Check if we should relocate this class at all
-            // Convert class name to a path that we can check against relocatable set
-            // Class names might use dots or slashes, so normalize to slashes
-            String classPath = classToCheck != null ? classToCheck.replace('.', '/') : "";
-
-            // Only relocate if this class is in our relocatable set (i.e., it's from an accepted JAR)
-            if (!relocatable.contains(classPath + CLASS_SUFFIX) && !relocatable.contains(classPath)) {
-                // Don't relocate - return the original class name
-                log.debug("relocateClass('{}') -> {} (not relocatable)", className, className);
-                return className;
-            }
-
             String output;
             // Work around a poor interaction between ServiceFileTransformer and our
             // prefix configuration which otherwise results in prefixes being added
             // prior to 'META-INF', breaking service loading. The default SimpleRelocator
             // replaces the first instance of the expected prefix with the new prefix,
             // however this is problematic when the expected prefix is an empty string.
-            if (isServiceProvider) {
+            if (className != null && className.startsWith(SERVICE_PROVIDER_PREFIX)) {
                 String targetClassName = className.substring(SERVICE_PROVIDER_PREFIX.length());
                 RelocateClassContext serviceContext = RelocateClassContext.builder()
                         .className(targetClassName)
