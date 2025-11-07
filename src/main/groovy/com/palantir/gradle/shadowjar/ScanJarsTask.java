@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
@@ -38,10 +39,8 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
-import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.slf4j.Logger;
@@ -60,25 +59,20 @@ public abstract class ScanJarsTask extends DefaultTask {
     private static final Pattern MULTIRELEASE_JAR_PREFIX = Pattern.compile("^META-INF/versions/\\d+/");
     private static final String SERVICE_PROVIDER_PREFIX = "META-INF/services/";
 
+    /**
+     * Set of JAR files to scan (from accepted modules only).
+     */
     @Classpath
     public abstract ConfigurableFileCollection getJarsToScan();
-
-    /**
-     * Set of accepted dependency module IDs (group:name).
-     * Only JARs from these dependencies will be scanned.
-     */
-    @Input
-    public abstract SetProperty<String> getAcceptedModules();
 
     @OutputFile
     public abstract RegularFileProperty getOutputFile();
 
     @TaskAction
     public final void scanJars() throws IOException {
-        Set<String> acceptedModules = getAcceptedModules().get();
+        Set<File> jarsToScan = getJarsToScan().getFiles();
 
-        Set<String> pathsInJars = getJarsToScan().getFiles().stream()
-                .filter(jar -> shouldScanJar(jar, acceptedModules))
+        Set<String> pathsInJars = jarsToScan.stream()
                 .flatMap(jar -> {
                     try (JarFile jarFile = new JarFile(jar)) {
                         return Collections.list(jarFile.entries()).stream()
@@ -114,7 +108,7 @@ public abstract class ScanJarsTask extends DefaultTask {
 
         log.info(
                 "Scanned {} JAR files and found {} unique paths",
-                getJarsToScan().getFiles().size(),
+                jarsToScan.size(),
                 pathsInJars.size());
     }
 
@@ -140,15 +134,5 @@ public abstract class ScanJarsTask extends DefaultTask {
         } else {
             return ImmutableList.of();
         }
-    }
-
-    private boolean shouldScanJar(File jar, Set<String> acceptedModules) {
-        // Extract module ID from JAR filename (e.g., "guava-31.1-jre.jar" -> "com.google.guava:guava")
-        // This is a heuristic - we match if the JAR name contains any of the accepted module names
-        String jarName = jar.getName();
-        return acceptedModules.stream().anyMatch(moduleId -> {
-            String artifactId = moduleId.substring(moduleId.indexOf(':') + 1);
-            return jarName.startsWith(artifactId + "-");
-        });
     }
 }

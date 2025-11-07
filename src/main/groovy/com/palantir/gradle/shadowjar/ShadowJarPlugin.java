@@ -30,6 +30,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ExternalModuleDependency;
+import org.gradle.api.artifacts.ResolvedArtifact;
 import org.gradle.api.artifacts.ResolvedDependency;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
@@ -179,7 +180,6 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
             Set<ResolvedDependency> acceptedModules = Sets.difference(onlyShadedModules, transitivelyRejectedModules);
 
-            // Convert to serializable form for configuration cache
             return ImmutableShadowingCalculation.builder()
                     .acceptedShadedModules(acceptedModules)
                     .rejectedShadedModules(highestLevelRejectedModulesThatArentDirectlyListed)
@@ -197,9 +197,8 @@ public class ShadowJarPlugin implements Plugin<Project> {
                 .register("scanJarsForRelocation", ScanJarsTask.class, task -> {
                     task.getOutputFile()
                             .set(project.getLayout().getBuildDirectory().file("shadowJar/relocation-data.json"));
-                    task.getJarsToScan().from(shadeTransitively);
-                    task.getAcceptedModules().set(shadowingCalculation.map(calc -> calc.acceptedShadedModules().stream()
-                            .map(dep -> dep.getModuleGroup() + ":" + dep.getModuleName())
+                    task.getJarsToScan().from(shadowingCalculation.map(calc -> calc.acceptedShadedModules().stream()
+                            .flatMap(dep -> dep.getModuleArtifacts().stream().map(ResolvedArtifact::getFile))
                             .collect(Collectors.toSet())));
                 });
 
