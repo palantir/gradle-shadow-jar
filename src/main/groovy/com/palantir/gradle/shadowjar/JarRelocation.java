@@ -23,7 +23,6 @@ import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -34,6 +33,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
+import org.gradle.api.file.FileCollection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,26 +41,23 @@ import org.slf4j.LoggerFactory;
  * Configures shadow jar relocation at configuration time.
  * Extracts logic from ShadowJarConfigurationTask to make it configuration-cache compatible.
  */
-final class JarRelocationConfigurer {
+final class JarRelocation {
 
-    private static final Logger log = LoggerFactory.getLogger(JarRelocationConfigurer.class);
+    private static final Logger log = LoggerFactory.getLogger(JarRelocation.class);
     private static final String CLASS_SUFFIX = ".class";
     private static final Pattern MULTIRELEASE_JAR_PREFIX = Pattern.compile("^META-INF/versions/\\d+/");
     private static final String SERVICE_PROVIDER_PREFIX = "META-INF/services/";
 
-    private JarRelocationConfigurer() {}
+    private JarRelocation() {}
 
     /**
      * Configures relocation for the shadow jar.
      * JAR scanning happens at configuration time and results are passed to the relocator.
      */
-    static void configureShadowJarRelocation(ShadowJar shadowJar, String relocationPrefix) {
-        Set<File> jarFiles = shadowJar
-                .getDependencyFilter()
-                .resolve(shadowJar.getConfigurations())
-                .getFiles();
+    static void configureRelocation(ShadowJar shadowJar, String relocationPrefix) {
+        FileCollection jars = shadowJar.getDependencyFilter().resolve(shadowJar.getConfigurations());
 
-        Set<String> pathsInJars = jarFiles.stream()
+        Set<String> pathsInJars = jars.getFiles().stream()
                 .flatMap(jar -> {
                     try (JarFile jarFile = new JarFile(jar)) {
                         return Collections.list(jarFile.entries()).stream()

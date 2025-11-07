@@ -214,7 +214,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
                         .anyMatch(accepted -> accepted.coordinates().equals(coord));
             });
 
-            JarRelocationConfigurer.configureShadowJarRelocation(shadowJar, relocationPrefix);
+            JarRelocation.configureRelocation(shadowJar, relocationPrefix);
         });
     }
 
