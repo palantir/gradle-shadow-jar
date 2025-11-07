@@ -157,6 +157,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
                 .forEach(configuration -> configuration.configure(conf -> conf.extendsFrom(shadeTransitively))));
 
         Supplier<ShadowingCalculation> shadowingCalculation = Suppliers.memoize(() -> {
+            System.out.println("HELLO");
             Set<ResolvedDependency> shadedModules = shadeTransitively
                     .getResolvedConfiguration()
                     .getLenientConfiguration()
