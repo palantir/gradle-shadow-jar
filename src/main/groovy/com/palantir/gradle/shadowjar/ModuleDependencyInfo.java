@@ -51,11 +51,4 @@ interface ModuleDependencyInfo extends Serializable {
     default String coordinates() {
         return group() + ":" + name();
     }
-
-    /**
-     * Returns full module coordinates with version in "group:name:version" format.
-     */
-    default String fullCoordinates() {
-        return group() + ":" + name() + ":" + version();
-    }
 }
