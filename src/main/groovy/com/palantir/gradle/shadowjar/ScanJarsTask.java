@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
@@ -59,9 +58,6 @@ public abstract class ScanJarsTask extends DefaultTask {
     private static final Pattern MULTIRELEASE_JAR_PREFIX = Pattern.compile("^META-INF/versions/\\d+/");
     private static final String SERVICE_PROVIDER_PREFIX = "META-INF/services/";
 
-    /**
-     * Set of JAR files to scan (from accepted modules only).
-     */
     @Classpath
     public abstract ConfigurableFileCollection getJarsToScan();
 
@@ -105,11 +101,6 @@ public abstract class ScanJarsTask extends DefaultTask {
         File outputFile = getOutputFile().get().getAsFile();
         outputFile.getParentFile().mkdirs();
         OBJECT_MAPPER.writeValue(outputFile, relocationData);
-
-        log.info(
-                "Scanned {} JAR files and found {} unique paths",
-                jarsToScan.size(),
-                pathsInJars.size());
     }
 
     /**
