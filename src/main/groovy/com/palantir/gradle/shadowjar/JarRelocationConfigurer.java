@@ -25,7 +25,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -61,37 +60,6 @@ final class JarRelocationConfigurer {
                 .resolve(shadowJar.getConfigurations())
                 .getFiles();
 
-        Set<String> relocatable = scanJarsForRelocatablePaths(jarFiles);
-        shadowJar.relocate(new JarFilesRelocator(relocatable, relocationPrefix + "."));
-
-        // Check for multi-release content and add manifest transformer if needed
-        boolean hasMultiReleaseContent = jarFiles.stream().anyMatch(jarFile -> {
-            try (JarFile jar = new JarFile(jarFile)) {
-                return Collections.list(jar.entries()).stream()
-                        .map(ZipEntry::getName)
-                        .anyMatch(name -> MULTIRELEASE_JAR_PREFIX.matcher(name).find());
-            } catch (IOException e) {
-                log.warn("Failed to check for multi-release content in JAR: {}", jarFile, e);
-                return false;
-            }
-        });
-
-        if (hasMultiReleaseContent) {
-            try {
-                shadowJar.transform(ComposableManifestAppenderTransformer.class, transformer -> {
-                    // JEP 238 requires this manifest entry
-                    transformer.append("Multi-Release", true);
-                });
-            } catch (ReflectiveOperationException e) {
-                throw new RuntimeException("Unable to construct ManifestAppenderTransformer", e);
-            }
-        }
-    }
-
-    /**
-     * Scans JAR files and returns set of relocatable paths.
-     */
-    private static Set<String> scanJarsForRelocatablePaths(Set<File> jarFiles) {
         Set<String> pathsInJars = jarFiles.stream()
                 .flatMap(jar -> {
                     try (JarFile jarFile = new JarFile(jar)) {
@@ -104,7 +72,7 @@ final class JarRelocationConfigurer {
                                 .toList()
                                 .stream();
                     } catch (IOException e) {
-                        throw new UncheckedIOException("Could not open jar file: " + jar, e);
+                        throw new RuntimeException("Could not open jar file", e);
                     }
                 })
                 .collect(Collectors.toSet());
@@ -115,10 +83,23 @@ final class JarRelocationConfigurer {
                 .flatMap(input -> splitMultiReleasePath(input).stream().skip(1))
                 .collect(Collectors.toSet());
 
-        return Stream.concat(pathsInJars.stream(), multiReleaseStuff.stream())
+        Set<String> relocatable = Stream.concat(pathsInJars.stream(), multiReleaseStuff.stream())
                 .filter(path -> !path.equals("META-INF/MANIFEST.MF")) // don't relocate this!
                 .filter(path -> !path.startsWith(SERVICE_PROVIDER_PREFIX)) // service providers remain in the root
                 .collect(Collectors.toSet());
+
+        shadowJar.relocate(new JarFilesRelocator(relocatable, relocationPrefix + "."));
+
+        if (!multiReleaseStuff.isEmpty()) {
+            try {
+                shadowJar.transform(ComposableManifestAppenderTransformer.class, transformer -> {
+                    // JEP 238 requires this manifest entry
+                    transformer.append("Multi-Release", true);
+                });
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException("Unable to construct ManifestAppenderTransformer", e);
+            }
+        }
     }
 
     /** Returns a pair of 'META-INF/versions/9/' and 'com/foo/whatever.class'. */
