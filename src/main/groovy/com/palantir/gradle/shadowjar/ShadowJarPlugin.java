@@ -18,17 +18,20 @@ package com.palantir.gradle.shadowjar;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ExternalModuleDependency;
 import org.gradle.api.artifacts.ResolvedArtifact;
 import org.gradle.api.artifacts.ResolvedDependency;
@@ -153,7 +156,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
                 .map(project.getConfigurations()::named)
                 .forEach(configuration -> configuration.configure(conf -> conf.extendsFrom(shadeTransitively))));
 
-        Provider<ShadowingCalculation> shadowingCalculation = project.provider(() -> {
+        Supplier<ShadowingCalculation> shadowingCalculation = Suppliers.memoize(() -> {
             Set<ResolvedDependency> shadedModules = shadeTransitively
                     .getResolvedConfiguration()
                     .getLenientConfiguration()
@@ -188,18 +191,22 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
         rejectedFromShading
                 .getDependencies()
-                .addAllLater(shadowingCalculation.map(calc -> calc.rejectedShadedModules().stream()
-                        .map(this::depToString)
-                        .map(project.getDependencies()::create)
-                        .collect(Collectors.toSet())));
+                .addAllLater(project.getObjects()
+                        .setProperty(Dependency.class)
+                        .value(project.provider(() -> shadowingCalculation.get().rejectedShadedModules().stream()
+                                .map(this::depToString)
+                                .map(project.getDependencies()::create)
+                                .collect(Collectors.toSet()))));
 
         TaskProvider<ScanJarsTask> scanJarsTask = project.getTasks()
                 .register("scanJarsForRelocation", ScanJarsTask.class, task -> {
                     task.getOutputFile()
                             .set(project.getLayout().getBuildDirectory().file("shadowJar/relocation-data.json"));
-                    task.getJarsToScan().from(shadowingCalculation.map(calc -> calc.acceptedShadedModules().stream()
-                            .flatMap(dep -> dep.getModuleArtifacts().stream().map(ResolvedArtifact::getFile))
-                            .collect(Collectors.toSet())));
+                    task.getJarsToScan()
+                            .from(project.provider(() -> shadowingCalculation.get().acceptedShadedModules().stream()
+                                    .flatMap(dep ->
+                                            dep.getModuleArtifacts().stream().map(ResolvedArtifact::getFile))
+                                    .collect(Collectors.toSet())));
                 });
 
         shadowJarProvider.configure(shadowJar -> {
