@@ -1,6 +1,8 @@
 com.gradleup.shadow:shadow-gradle-plugin = 8.3.9
 org.immutables:value = 2.11.6
 com.google.guava:guava = 33.5.0-jre
+com.fasterxml.jackson.*:* = 2.20.1
+com.fasterxml.jackson.core:jackson-annotations = 2.20
 
 # Test deps
 com.palantir.tracing:tracing = 6.28.0

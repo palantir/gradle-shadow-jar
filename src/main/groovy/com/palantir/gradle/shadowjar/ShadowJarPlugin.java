@@ -193,6 +193,16 @@ public class ShadowJarPlugin implements Plugin<Project> {
                         .map(project.getDependencies()::create)
                         .collect(Collectors.toSet())));
 
+        TaskProvider<ScanJarsTask> scanJarsTask = project.getTasks()
+                .register("scanJarsForRelocation", ScanJarsTask.class, task -> {
+                    task.getOutputFile()
+                            .set(project.getLayout().getBuildDirectory().file("shadowJar/relocation-data.json"));
+                    task.getJarsToScan().from(shadeTransitively);
+                    task.getAcceptedModules().set(shadowingCalculation.map(calc -> calc.acceptedShadedModules().stream()
+                            .map(dep -> dep.getModuleGroup() + ":" + dep.getModuleName())
+                            .collect(Collectors.toSet())));
+                });
+
         shadowJarProvider.configure(shadowJar -> {
             shadowJar.setConfigurations(Collections.singletonList(shadeTransitively));
 
@@ -206,7 +216,26 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     .include(dep ->
                             shadowingCalculation.get().acceptedShadedModules().contains(dep));
 
-            JarRelocation.configureRelocation(shadowJar, relocationPrefix);
+            shadowJar.dependsOn(scanJarsTask);
+
+            Provider<RelocationData> relocationDataProvider =
+                    ScanJarsTask.getRelocationData(scanJarsTask.flatMap(ScanJarsTask::getOutputFile));
+
+            shadowJar.relocate(new LazyJarFilesRelocator(relocationDataProvider, relocationPrefix + "."));
+
+            // Configure multi-release manifest if needed
+            shadowJar.doFirst("configureMultiReleaseManifest", task -> {
+                if (relocationDataProvider.get().hasMultiReleaseContent()) {
+                    try {
+                        shadowJar.transform(ComposableManifestAppenderTransformer.class, transformer -> {
+                            // JEP 238 requires this manifest entry
+                            transformer.append("Multi-Release", true);
+                        });
+                    } catch (ReflectiveOperationException e) {
+                        throw new RuntimeException("Unable to construct ManifestAppenderTransformer", e);
+                    }
+                }
+            });
         });
     }
 
