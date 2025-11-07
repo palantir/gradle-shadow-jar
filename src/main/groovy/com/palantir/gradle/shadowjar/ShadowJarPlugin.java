@@ -181,19 +181,15 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
             // Convert to serializable form for configuration cache
             return ImmutableShadowingCalculation.builder()
-                    .acceptedShadedModules(acceptedModules.stream()
-                            .map(ModuleDependencyInfo::from)
-                            .collect(Collectors.toSet()))
-                    .rejectedShadedModules(highestLevelRejectedModulesThatArentDirectlyListed.stream()
-                            .map(ModuleDependencyInfo::from)
-                            .collect(Collectors.toSet()))
+                    .acceptedShadedModules(acceptedModules)
+                    .rejectedShadedModules(highestLevelRejectedModulesThatArentDirectlyListed)
                     .build();
         });
 
         rejectedFromShading
                 .getDependencies()
                 .addAllLater(shadowingCalculation.map(calc -> calc.rejectedShadedModules().stream()
-                        .map(ModuleDependencyInfo::coordinates)
+                        .map(this::depToString)
                         .map(project.getDependencies()::create)
                         .collect(Collectors.toSet())));
 
@@ -205,14 +201,10 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     .replace('-', '_')
                     .toLowerCase(Locale.US);
 
-            Provider<Set<ModuleDependencyInfo>> acceptedModulesProvider =
-                    shadowingCalculation.map(ShadowingCalculation::acceptedShadedModules);
-
-            shadowJar.getDependencyFilter().include(dependency -> {
-                String coord = dependency.getModuleGroup() + ":" + dependency.getModuleName();
-                return acceptedModulesProvider.get().stream()
-                        .anyMatch(accepted -> accepted.coordinates().equals(coord));
-            });
+            shadowJar
+                    .getDependencyFilter()
+                    .include(dep ->
+                            shadowingCalculation.get().acceptedShadedModules().contains(dep));
 
             JarRelocation.configureRelocation(shadowJar, relocationPrefix);
         });
@@ -239,9 +231,13 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
     @Value.Immutable
     interface ShadowingCalculation {
-        Set<ModuleDependencyInfo> acceptedShadedModules();
+        Set<ResolvedDependency> acceptedShadedModules();
 
-        Set<ModuleDependencyInfo> rejectedShadedModules();
+        Set<ResolvedDependency> rejectedShadedModules();
+    }
+
+    private String depToString(ResolvedDependency resolvedDependency) {
+        return String.format("%s:%s", resolvedDependency.getModuleGroup(), resolvedDependency.getModuleName());
     }
 
     private static void ensureShadowJarHasDefaultClassifierThatDoesNotClashWithTheRegularJarTask(
