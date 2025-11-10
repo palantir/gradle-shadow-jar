@@ -16,10 +16,6 @@
 
 package com.palantir.gradle.shadowjar;
 
-import com.github.jengelman.gradle.plugins.shadow.relocation.CacheableRelocator;
-import com.github.jengelman.gradle.plugins.shadow.relocation.RelocateClassContext;
-import com.github.jengelman.gradle.plugins.shadow.relocation.RelocatePathContext;
-import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.io.IOException;
@@ -42,11 +38,9 @@ public abstract class ShadowJarConfigurationTask {
 
     private static final Logger log = LoggerFactory.getLogger(ShadowJarConfigurationTask.class);
 
-    private static final String CLASS_SUFFIX = ".class";
-
     // Multi-Release JAR Files are defined in https://openjdk.java.net/jeps/238
     private static final Pattern MULTIRELEASE_JAR_PREFIX = Pattern.compile("^META-INF/versions/\\d+/");
-    private static final String SERVICE_PROVIDER_PREFIX = "META-INF/services/";
+    static final String SERVICE_PROVIDER_PREFIX = "META-INF/services/";
 
     /** Scan jars and return all paths found within them */
     public static Set<String> scanJarsForPaths(org.gradle.api.file.FileCollection jars) {
@@ -95,60 +89,6 @@ public abstract class ShadowJarConfigurationTask {
             return ImmutableList.of(input.substring(0, matcher.end()), input.substring(matcher.end()));
         } else {
             return ImmutableList.of();
-        }
-    }
-
-    @CacheableRelocator
-    public static final class JarFilesRelocator extends SimpleRelocator {
-        private final Set<String> relocatable;
-
-        public JarFilesRelocator(Set<String> relocatable, String shadedPrefix) {
-            super("", shadedPrefix, ImmutableList.of(), ImmutableList.of());
-            this.relocatable = relocatable;
-        }
-
-        @Override
-        public boolean canRelocatePath(String path) {
-            return relocatable.contains(path + CLASS_SUFFIX) || relocatable.contains(path);
-        }
-
-        @Override
-        public String relocatePath(RelocatePathContext context) {
-            List<String> maybePair = splitMultiReleasePath(context.getPath());
-            if (!maybePair.isEmpty()) {
-                return relocateMultiReleasePath(maybePair, context);
-            }
-
-            String output = super.relocatePath(context);
-            log.debug("relocatePath('{}') -> {}", context.getPath(), output);
-            return output;
-        }
-
-        private String relocateMultiReleasePath(List<String> pair, RelocatePathContext context) {
-            RelocatePathContext newContext = new RelocatePathContext(pair.get(1));
-            String out = pair.get(0) + super.relocatePath(newContext);
-            log.debug("relocateMultiReleasePath('{}') -> {}", context.getPath(), out);
-            return out;
-        }
-
-        @Override
-        public String relocateClass(RelocateClassContext context) {
-            String className = context.getClassName();
-            String output;
-            // Work around a poor interaction between ServiceFileTransformer and our
-            // prefix configuration which otherwise results in prefixes being added
-            // prior to 'META-INF', breaking service loading. The default SimpleRelocator
-            // replaces the first instance of the expected prefix with the new prefix,
-            // however this is problematic when the expected prefix is an empty string.
-            if (className != null && className.startsWith(SERVICE_PROVIDER_PREFIX)) {
-                String targetClassName = className.substring(SERVICE_PROVIDER_PREFIX.length());
-                RelocateClassContext serviceContext = new RelocateClassContext(targetClassName);
-                output = SERVICE_PROVIDER_PREFIX + super.relocateClass(serviceContext);
-            } else {
-                output = super.relocateClass(context);
-            }
-            log.debug("relocateClass('{}') -> {}", context.getClassName(), output);
-            return output;
         }
     }
 }

@@ -37,6 +37,7 @@ import org.gradle.api.artifacts.ExternalModuleDependency;
 import org.gradle.api.artifacts.ResolvedDependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
@@ -199,12 +200,12 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
         rejectedFromShading
                 .getDependencies()
-                .addAllLater(project.getObjects().setProperty(Dependency.class).value(project.provider(() -> {
-                    return shadowingCalculation.get().rejectedShadedModules().stream()
-                            .map(this::depToString)
-                            .map(project.getDependencies()::create)
-                            .collect(Collectors.toSet());
-                })));
+                .addAllLater(project.getObjects()
+                        .setProperty(Dependency.class)
+                        .value(project.provider(() -> shadowingCalculation.get().rejectedShadedModules().stream()
+                                .map(this::depToString)
+                                .map(project.getDependencies()::create)
+                                .collect(Collectors.toSet()))));
 
         shadowJarProvider.configure(shadowJar -> {
             shadowJar.getConfigurations().set(Collections.singletonList(shadeTransitively));
@@ -213,24 +214,17 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     .replace('-', '_')
                     .toLowerCase(Locale.US);
 
-            // Use doFirst to scan jars and configure relocation at execution time
+            Provider<FileCollection> jars = shadowJar.getDependencyFilter().map(filter -> {
+                filter.include(shadowingCalculation.get().acceptedShadedModules()::contains);
+                return filter.resolve(shadowJar.getConfigurations().get());
+            });
+
             shadowJar.doFirst("configure-shadow-relocation", task -> {
-                // Access the already-computed shadowing calculation
-                Set<ResolvedDependency> acceptedModules =
-                        shadowingCalculation.get().acceptedShadedModules();
-
-                // Configure dependency filter and resolve jars at execution time
-                shadowJar.getDependencyFilter().get().include(acceptedModules::contains);
-                FileCollection jars = shadowJar
-                        .getDependencyFilter()
-                        .get()
-                        .resolve(shadowJar.getConfigurations().get());
-
-                Set<String> pathsInJars = ShadowJarConfigurationTask.scanJarsForPaths(jars);
+                Set<String> pathsInJars = ShadowJarConfigurationTask.scanJarsForPaths(jars.get());
                 Set<String> relocatable = ShadowJarConfigurationTask.computeRelocatablePaths(pathsInJars);
                 boolean hasMultiRelease = ShadowJarConfigurationTask.hasMultiRelease(pathsInJars);
 
-                shadowJar.relocate(new ShadowJarConfigurationTask.JarFilesRelocator(relocatable, prefix + "."));
+                shadowJar.relocate(new JarFilesRelocator(relocatable, prefix + "."));
 
                 if (hasMultiRelease) {
                     shadowJar.transform(ComposableManifestAppenderTransformer.class, transformer -> {
