@@ -24,6 +24,7 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -34,6 +35,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolvedDependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.provider.Property;
@@ -57,40 +59,34 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
     private static final Pattern MULTIRELEASE_JAR_PREFIX = Pattern.compile("^META-INF/versions/\\d+/");
     private static final String SERVICE_PROVIDER_PREFIX = "META-INF/services/";
 
-    private final Property<ShadowJar> shadowJarProperty =
-            getProject().getObjects().property(ShadowJar.class);
-
-    private final Property<String> prefix = getProject().getObjects().property(String.class);
-    private final SetProperty<ResolvedDependency> acceptedDependencies =
-            getProject().getObjects().setProperty(ResolvedDependency.class);
-
     @Internal
-    public final Property<ShadowJar> getShadowJar() {
-        return shadowJarProperty;
-    }
+    public abstract Property<ShadowJar> getShadowJar();
 
     @Input
-    public final Property<String> getPrefix() {
-        return prefix;
-    }
+    public abstract Property<String> getPrefix();
+
+    @Input
+    public abstract SetProperty<ResolvedDependency> getAcceptedDependencies();
 
     @Classpath
-    public final List<FileCollection> getConfigurations() {
-        return shadowJarProperty.get().getConfigurations();
+    public final FileCollection getConfigurationsAsFileCollection() {
+        return getShadowJar()
+                .get()
+                .getProject()
+                .files(getShadowJar().get().getConfigurations().get());
     }
 
-    @Input
-    public final SetProperty<ResolvedDependency> getAcceptedDependencies() {
-        return acceptedDependencies;
+    private List<Configuration> getConfigurations() {
+        return new ArrayList<>(getShadowJar().get().getConfigurations().get());
     }
 
     @TaskAction
     public final void run() {
-        ShadowJar shadowJarTask = shadowJarProperty.get();
+        ShadowJar shadowJarTask = getShadowJar().get();
 
-        shadowJarTask.getDependencyFilter().include(acceptedDependencies.get()::contains);
+        shadowJarTask.getDependencyFilter().get().include(getAcceptedDependencies().get()::contains);
 
-        FileCollection jars = shadowJarTask.getDependencyFilter().resolve(getConfigurations());
+        FileCollection jars = shadowJarTask.getDependencyFilter().get().resolve(getConfigurations());
 
         Set<String> pathsInJars = jars.getFiles().stream()
                 .flatMap(jar -> {
@@ -101,7 +97,7 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                                 .peek(path -> log.debug("Jar '{}' contains entry '{}'", jar.getName(), path))
                                 .peek(path -> Preconditions.checkState(
                                         !path.startsWith("/"), "Unexpected absolute path '%s' in jar '%s'", path, jar))
-                                .collect(Collectors.toList())
+                                .toList()
                                 .stream();
                     } catch (IOException e) {
                         throw new RuntimeException("Could not open jar file", e);
@@ -120,17 +116,13 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                 .filter(path -> !path.startsWith(SERVICE_PROVIDER_PREFIX)) // service providers remain in the root
                 .collect(Collectors.toSet());
 
-        shadowJarTask.relocate(new JarFilesRelocator(relocatable, prefix.get() + "."));
+        shadowJarTask.relocate(new JarFilesRelocator(relocatable, getPrefix().get() + "."));
 
         if (!multiReleaseStuff.isEmpty()) {
-            try {
-                shadowJarTask.transform(ComposableManifestAppenderTransformer.class, transformer -> {
-                    // JEP 238 requires this manifest entry
-                    transformer.append("Multi-Release", true);
-                });
-            } catch (ReflectiveOperationException e) {
-                throw new RuntimeException("Unable to construct ManifestAppenderTransformer", e);
-            }
+            shadowJarTask.transform(ComposableManifestAppenderTransformer.class, transformer -> {
+                // JEP 238 requires this manifest entry
+                transformer.append("Multi-Release", true);
+            });
         }
     }
 
@@ -171,8 +163,8 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
         }
 
         private String relocateMultiReleasePath(List<String> pair, RelocatePathContext context) {
-            context.setPath(pair.get(1));
-            String out = pair.get(0) + super.relocatePath(context);
+            RelocatePathContext newContext = new RelocatePathContext(pair.get(1));
+            String out = pair.get(0) + super.relocatePath(newContext);
             log.debug("relocateMultiReleasePath('{}') -> {}", context.getPath(), out);
             return out;
         }
@@ -188,10 +180,7 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
             // however this is problematic when the expected prefix is an empty string.
             if (className != null && className.startsWith(SERVICE_PROVIDER_PREFIX)) {
                 String targetClassName = className.substring(SERVICE_PROVIDER_PREFIX.length());
-                RelocateClassContext serviceContext = RelocateClassContext.builder()
-                        .className(targetClassName)
-                        .stats(context.getStats())
-                        .build();
+                RelocateClassContext serviceContext = new RelocateClassContext(targetClassName);
                 output = SERVICE_PROVIDER_PREFIX + super.relocateClass(serviceContext);
             } else {
                 output = super.relocateClass(context);

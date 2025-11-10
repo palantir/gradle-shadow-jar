@@ -71,10 +71,11 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     "You must be using Gradle 7 or above to use the com.palantir.shadow-jar plugin");
         }
 
-        if (!project.getRootProject().getPlugins().hasPlugin("com.palantir.consistent-versions")) {
-            throw new IllegalStateException(
-                    "You must apply com.palantir.consistent-versions to use the com.palantir.shadow-jar plugin");
-        }
+        //        if (!project.getRootProject().getPlugins().hasPlugin("com.palantir.consistent-versions")) {
+        //            throw new IllegalStateException(
+        //                    "You must apply com.palantir.consistent-versions to use the com.palantir.shadow-jar
+        // plugin");
+        //        }
 
         project.getPluginManager().apply(JavaPlugin.class);
         project.getPluginManager().apply(ShadowPlugin.class);
@@ -117,8 +118,8 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     runtimeElements.extendsFrom(rejectedFromShading);
                 });
 
-        ShadowJarVersionLock.lockConfiguration(project, shadeTransitively);
-        ShadowJarVersionLock.lockConfiguration(project, unshaded);
+        //        ShadowJarVersionLock.lockConfiguration(project, shadeTransitively);
+        //        ShadowJarVersionLock.lockConfiguration(project, unshaded);
 
         // This is needed to "break the loop" when GCV does --write-locks. At project.afterEvaluate, VersionsLockPlugin
         // will calculate its lock state, which involves resolving unifiedClasspath. unifiedClasspath extends from
@@ -130,7 +131,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
         // the version props plugin which is what we do below. Any constraints that were going to be injected into
         // in a "final" configuration like runtimeClasspath or runtimeElements should still get these constraints
         // from another source, so this *should* be ok (there is a test for this).
-        ShadowJarVersionLock.excludeConfigurationFromVersionsPropsInjection(project, rejectedFromShading);
+        //        ShadowJarVersionLock.excludeConfigurationFromVersionsPropsInjection(project, rejectedFromShading);
 
         unshaded.getIncoming().beforeResolve(incoming -> {
             // only process if the unshaded configuration is still unresolved.  The GCV plugin creates an
@@ -212,7 +213,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
         shadowJarProvider.configure(shadowJar -> {
             shadowJar.dependsOn(shadowJarConfigurationTask);
-            shadowJar.setConfigurations(Collections.singletonList(shadeTransitively));
+            shadowJar.getConfigurations().set(Collections.singletonList(shadeTransitively));
         });
     }
 
