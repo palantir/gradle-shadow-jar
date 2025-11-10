@@ -70,9 +70,9 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
     @Override
     public final void apply(Project project) {
-        if (GradleVersion.current().compareTo(GradleVersion.version("7.0")) < 0) {
+        if (GradleVersion.current().compareTo(GradleVersion.version("8.11")) < 0) {
             throw new IllegalStateException(
-                    "You must be using Gradle 7 or above to use the com.palantir.shadow-jar plugin");
+                    "You must be using Gradle 8.11 or above to use the com.palantir.shadow-jar plugin");
         }
 
         if (!project.getRootProject().getPlugins().hasPlugin("com.palantir.consistent-versions")) {
@@ -85,7 +85,6 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
         // Disable Shadow's shadowRuntimeElements variant to avoid conflicts with GCV
         // Shadow tries to modify shadowRuntimeElements in afterEvaluate, but GCV locks it earlier
-        // We handle publishing via our own configurations (rejectedFromShading + shadowJar artifact)
         project.getExtensions().configure(ShadowExtension.class, shadow -> {
             shadow.getAddShadowVariantIntoJavaComponent().set(false);
             shadow.getAddTargetJvmVersionAttribute().set(false);
