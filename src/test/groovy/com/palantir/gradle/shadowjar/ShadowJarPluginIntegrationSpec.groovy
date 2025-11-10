@@ -52,9 +52,9 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
                 id 'org.unbroken-dome.test-sets' version '4.1.0' apply false
             }
 
-            apply plugin: 'com.palantir.shadow-jar'
             apply plugin: 'com.palantir.consistent-versions'
             apply plugin: 'nebula.maven-nebula-publish'
+            apply plugin: 'com.palantir.shadow-jar'
 
             group = 'com.palantir.bar-baz_quux'
             version = '2'
