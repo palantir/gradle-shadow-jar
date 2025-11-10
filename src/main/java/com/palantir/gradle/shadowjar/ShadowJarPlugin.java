@@ -169,7 +169,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
         project.getExtensions().getByType(SourceSetContainer.class).configureEach(sourceSet -> Stream.of(
                         sourceSet.getCompileClasspathConfigurationName(),
                         sourceSet.getRuntimeClasspathConfigurationName())
-                .map(project.getConfigurations()::named) // Use named() instead of getByName()
+                .map(project.getConfigurations()::named)
                 .forEach(confProvider -> confProvider.configure(conf -> conf.extendsFrom(shadeTransitively.get()))));
 
         Provider<ShadowingCalculation> shadowingCalculation =
