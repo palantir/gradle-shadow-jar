@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-// Change: Different package, adapted from Shadow 9.2.2
 package com.palantir.gradle.shadowjar;
 
 import com.github.jengelman.gradle.plugins.shadow.transformers.ResourceTransformer;
