@@ -206,7 +206,6 @@ public class ShadowJarPlugin implements Plugin<Project> {
                             .collect(Collectors.toSet());
                 })));
 
-        // Configure shadowJar with lazy relocation - resolve everything at configuration time lazily
         shadowJarProvider.configure(shadowJar -> {
             shadowJar.getConfigurations().set(Collections.singletonList(shadeTransitively));
 
@@ -214,29 +213,31 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     .replace('-', '_')
                     .toLowerCase(Locale.US);
 
-            // Configure dependency filter - must be done at configuration time
-            Set<ResolvedDependency> acceptedDeps = shadowingCalculation.get().acceptedShadedModules();
-            shadowJar.getDependencyFilter().get().include(acceptedDeps::contains);
+            // Use doFirst to scan jars and configure relocation at execution time
+            shadowJar.doFirst("configure-shadow-relocation", task -> {
+                // Access the already-computed shadowing calculation
+                Set<ResolvedDependency> acceptedModules =
+                        shadowingCalculation.get().acceptedShadedModules();
 
-            // Resolve jars and scan them at configuration time (lazy via supplier)
-            FileCollection jars = shadowJar
-                    .getDependencyFilter()
-                    .get()
-                    .resolve(shadowJar.getConfigurations().get());
+                // Configure dependency filter and resolve jars at execution time
+                shadowJar.getDependencyFilter().get().include(acceptedModules::contains);
+                FileCollection jars = shadowJar
+                        .getDependencyFilter()
+                        .get()
+                        .resolve(shadowJar.getConfigurations().get());
 
-            Set<String> pathsInJars = ShadowJarConfigurationTask.scanJarsForPaths(jars);
+                Set<String> pathsInJars = ShadowJarConfigurationTask.scanJarsForPaths(jars);
+                Set<String> relocatable = ShadowJarConfigurationTask.computeRelocatablePaths(pathsInJars);
+                boolean hasMultiRelease = ShadowJarConfigurationTask.hasMultiRelease(pathsInJars);
 
-            Set<String> relocatable = ShadowJarConfigurationTask.computeRelocatablePaths(pathsInJars);
+                shadowJar.relocate(new ShadowJarConfigurationTask.JarFilesRelocator(relocatable, prefix + "."));
 
-            boolean hasMultiRelease = ShadowJarConfigurationTask.hasMultiRelease(pathsInJars);
-
-            shadowJar.relocate(new ShadowJarConfigurationTask.JarFilesRelocator(relocatable, prefix + "."));
-
-            if (hasMultiRelease) {
-                shadowJar.transform(ComposableManifestAppenderTransformer.class, transformer -> {
-                    transformer.append("Multi-Release", true);
-                });
-            }
+                if (hasMultiRelease) {
+                    shadowJar.transform(ComposableManifestAppenderTransformer.class, transformer -> {
+                        transformer.append("Multi-Release", true);
+                    });
+                }
+            });
         });
     }
 

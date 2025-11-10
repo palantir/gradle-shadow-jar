@@ -84,7 +84,8 @@ public abstract class ShadowJarConfigurationTask {
 
     /** Check if any of the paths indicate a multi-release JAR */
     public static boolean hasMultiRelease(Set<String> pathsInJars) {
-        return pathsInJars.stream().anyMatch(path -> MULTIRELEASE_JAR_PREFIX.matcher(path).find());
+        return pathsInJars.stream()
+                .anyMatch(path -> MULTIRELEASE_JAR_PREFIX.matcher(path).find());
     }
 
     /** Returns a pair of 'META-INF/versions/9/' and 'com/foo/whatever.class'. */
