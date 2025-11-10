@@ -35,6 +35,7 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ExternalModuleDependency;
 import org.gradle.api.artifacts.ResolvedDependency;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
@@ -142,8 +143,8 @@ public class ShadowJarPlugin implements Plugin<Project> {
         ShadowJarVersionLock.excludeConfigurationFromVersionsPropsInjection(project, rejectedFromShading);
 
         unshaded.getIncoming().beforeResolve(incoming -> {
-            // only process if the unshaded configuration is still unresolved.  The GCV plugin creates an
-            // unshadedCopy configuration from the original and this beforeResolve Action is copied as well.  That
+            // only process if the unshaded configuration is still unresolved. The GCV plugin creates an
+            // unshadedCopy configuration from the original and this beforeResolve Action is copied as well. That
             // leads to errors when it tries to modify the original configuration below for a second time.
             if (!unshaded.getState().equals(Configuration.State.UNRESOLVED)) {
                 return;
@@ -205,23 +206,37 @@ public class ShadowJarPlugin implements Plugin<Project> {
                             .collect(Collectors.toSet());
                 })));
 
-        TaskProvider<ShadowJarConfigurationTask> shadowJarConfigurationTask = project.getTasks()
-                .register("relocateShadowJar", ShadowJarConfigurationTask.class, relocateTask -> {
-                    relocateTask.getShadowJar().set(shadowJarProvider.get());
-
-                    relocateTask.getPrefix().set(project.provider(() -> String.join(
-                                    ".", "shadow", project.getGroup().toString(), project.getName())
-                            .replace('-', '_')
-                            .toLowerCase(Locale.US)));
-
-                    relocateTask.getAcceptedDependencies().set(project.provider(() -> shadowingCalculation
-                            .get()
-                            .acceptedShadedModules()));
-                });
-
+        // Configure shadowJar with lazy relocation - resolve everything at configuration time lazily
         shadowJarProvider.configure(shadowJar -> {
-            shadowJar.dependsOn(shadowJarConfigurationTask);
             shadowJar.getConfigurations().set(Collections.singletonList(shadeTransitively));
+
+            String prefix = String.join(".", "shadow", project.getGroup().toString(), project.getName())
+                    .replace('-', '_')
+                    .toLowerCase(Locale.US);
+
+            // Configure dependency filter - must be done at configuration time
+            Set<ResolvedDependency> acceptedDeps = shadowingCalculation.get().acceptedShadedModules();
+            shadowJar.getDependencyFilter().get().include(acceptedDeps::contains);
+
+            // Resolve jars and scan them at configuration time (lazy via supplier)
+            FileCollection jars = shadowJar
+                    .getDependencyFilter()
+                    .get()
+                    .resolve(shadowJar.getConfigurations().get());
+
+            Set<String> pathsInJars = ShadowJarConfigurationTask.scanJarsForPaths(jars);
+
+            Set<String> relocatable = ShadowJarConfigurationTask.computeRelocatablePaths(pathsInJars);
+
+            boolean hasMultiRelease = ShadowJarConfigurationTask.hasMultiRelease(pathsInJars);
+
+            shadowJar.relocate(new ShadowJarConfigurationTask.JarFilesRelocator(relocatable, prefix + "."));
+
+            if (hasMultiRelease) {
+                shadowJar.transform(ComposableManifestAppenderTransformer.class, transformer -> {
+                    transformer.append("Multi-Release", true);
+                });
+            }
         });
     }
 
