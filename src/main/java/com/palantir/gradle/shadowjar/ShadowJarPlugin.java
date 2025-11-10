@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2020 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2025 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,8 +29,10 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ExternalModuleDependency;
@@ -106,21 +108,21 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
     private void setupShadowJarToShadeTheCorrectDependencies(
             Project project, TaskProvider<ShadowJar> shadowJarProvider) {
-        Configuration shadeTransitively = project.getConfigurations().create("shadeTransitively", conf -> {
+        Configuration shadeTransitively = project.getConfigurations().register("shadeTransitively", conf -> {
             conf.setCanBeConsumed(false);
             conf.setVisible(false);
-        });
+        }).get();
 
-        Configuration unshaded = project.getConfigurations().create("unshaded", conf -> {
+        Configuration unshaded = project.getConfigurations().register("unshaded", conf -> {
             conf.setCanBeConsumed(false);
             conf.setVisible(false);
-        });
+        }).get();
 
-        Configuration rejectedFromShading = project.getConfigurations().create("rejectedFromShading", conf -> {
+        Configuration rejectedFromShading = project.getConfigurations().register("rejectedFromShading", conf -> {
             conf.setCanBeConsumed(false);
             conf.setVisible(false);
             conf.setCanBeResolved(false);
-        });
+        }).get();
 
         project.getConfigurations()
                 .named(JavaPlugin.RUNTIME_ELEMENTS_CONFIGURATION_NAME)
@@ -143,7 +145,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
         // from another source, so this *should* be ok (there is a test for this).
         ShadowJarVersionLock.excludeConfigurationFromVersionsPropsInjection(project, rejectedFromShading);
 
-        unshaded.getIncoming().beforeResolve(incoming -> {
+        unshaded.getIncoming().beforeResolve(_incoming -> {
             // only process if the unshaded configuration is still unresolved. The GCV plugin creates an
             // unshadedCopy configuration from the original and this beforeResolve Action is copied as well. That
             // leads to errors when it tries to modify the original configuration below for a second time.
@@ -219,17 +221,20 @@ public class ShadowJarPlugin implements Plugin<Project> {
                 return filter.resolve(shadowJar.getConfigurations().get());
             });
 
-            shadowJar.doFirst("configure-shadow-relocation", task -> {
-                Set<String> pathsInJars = ShadowJarRelocationHelper.scanJarsForPaths(jars.get());
-                Set<String> relocatable = ShadowJarRelocationHelper.computeRelocatablePaths(pathsInJars);
-                boolean hasMultiRelease = ShadowJarRelocationHelper.hasMultiRelease(pathsInJars);
+            shadowJar.doFirst("configure-shadow-relocation", new Action<Task>() {
+                @Override
+                public void execute(Task _task) {
+                    Set<String> pathsInJars = ShadowJarRelocationHelper.scanJarsForPaths(jars.get());
+                    Set<String> relocatable = ShadowJarRelocationHelper.computeRelocatablePaths(pathsInJars);
+                    boolean hasMultiRelease = ShadowJarRelocationHelper.hasMultiRelease(pathsInJars);
 
-                shadowJar.relocate(new JarFilesRelocator(relocatable, prefix + "."));
+                    shadowJar.relocate(new JarFilesRelocator(relocatable, prefix + "."));
 
-                if (hasMultiRelease) {
-                    shadowJar.transform(ComposableManifestAppenderTransformer.class, transformer -> {
-                        transformer.append("Multi-Release", true);
-                    });
+                    if (hasMultiRelease) {
+                        shadowJar.transform(ComposableManifestAppenderTransformer.class, transformer -> {
+                            transformer.append("Multi-Release", true);
+                        });
+                    }
                 }
             });
         });

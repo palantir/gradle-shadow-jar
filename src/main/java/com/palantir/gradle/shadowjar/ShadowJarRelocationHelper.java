@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2020 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2025 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package com.palantir.gradle.shadowjar;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -57,7 +58,7 @@ public final class ShadowJarRelocationHelper {
                                 .toList()
                                 .stream();
                     } catch (IOException e) {
-                        throw new RuntimeException("Could not open jar file", e);
+                        throw new UncheckedIOException("Could not open jar file", e);
                     }
                 })
                 .collect(Collectors.toSet());
