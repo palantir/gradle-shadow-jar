@@ -67,6 +67,7 @@ class ComposableManifestAppenderTransformer implements ResourceTransformer {
     @Override
     void modifyOutputStream(ZipOutputStream os, boolean preserveFileTimestamps) {
         ZipEntry entry = new ZipEntry(MANIFEST_NAME)
+
         os.putNextEntry(entry)
         // Change: Trim existing file contents and add a single trailing newline
         os.write(trimWhitespace(manifestContents))

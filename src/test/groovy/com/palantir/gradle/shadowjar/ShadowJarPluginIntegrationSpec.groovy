@@ -477,7 +477,6 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             }
 
             // This replicates what the 'com.palantir.sls-recommended-dependencies' plugin does
-            // Using configuration-time wiring for CC compatibility
             tasks.named('jar', Jar).configure { jarTask ->
                 jarTask.manifest.attributes('Foo': 'Bar')
             }
@@ -506,7 +505,6 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 shadeTransitively 'org.slf4j:slf4j-log4j12:1.7.26'
             }
 
-            // Use simple task to just print files on classpath (CC-compatible)
             tasks.register('printRuntimeClasspath') {
                 def files = configurations.runtimeClasspath.incoming.artifactView {}.files
                 doLast {
@@ -519,7 +517,6 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         def output = runTasksAndCheckSuccess('printRuntimeClasspath').output
 
         then:
-        // The output now shows JAR filenames with versions instead of coordinates
         output.contains('slf4j-log4j12-1.7.30.jar')
     }
 
@@ -578,5 +575,4 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
         return result
     }
-
 }

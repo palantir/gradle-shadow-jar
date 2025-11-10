@@ -34,13 +34,14 @@ import org.slf4j.LoggerFactory;
 // Originally taken from https://github.com/GradleUp/shadow/blob/9.2.2/src/main/groovy/com/github/jengelman/
 // gradle/plugins/shadow/tasks/ConfigureShadowRelocation.groovy
 // Note: ConfigureShadowRelocation was removed in Shadow 8.1.0 in favor of enableAutoRelocation property
-public abstract class ShadowJarConfigurationTask {
+public final class ShadowJarRelocationHelper {
 
-    private static final Logger log = LoggerFactory.getLogger(ShadowJarConfigurationTask.class);
+    private static final Logger log = LoggerFactory.getLogger(ShadowJarRelocationHelper.class);
+
+    private ShadowJarRelocationHelper() {}
 
     // Multi-Release JAR Files are defined in https://openjdk.java.net/jeps/238
     private static final Pattern MULTIRELEASE_JAR_PREFIX = Pattern.compile("^META-INF/versions/\\d+/");
-    static final String SERVICE_PROVIDER_PREFIX = "META-INF/services/";
 
     /** Scan jars and return all paths found within them */
     public static Set<String> scanJarsForPaths(org.gradle.api.file.FileCollection jars) {
@@ -72,7 +73,7 @@ public abstract class ShadowJarConfigurationTask {
 
         return Stream.concat(pathsInJars.stream(), multiReleaseStuff.stream())
                 .filter(path -> !path.equals("META-INF/MANIFEST.MF")) // don't relocate this!
-                .filter(path -> !path.startsWith(SERVICE_PROVIDER_PREFIX)) // service providers remain in the root
+                .filter(path -> !path.startsWith("META-INF/services/")) // service providers remain in the root
                 .collect(Collectors.toSet());
     }
 

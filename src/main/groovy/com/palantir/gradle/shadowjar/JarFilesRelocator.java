@@ -23,14 +23,11 @@ import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
 import com.google.common.collect.ImmutableList;
 import java.util.List;
 import java.util.Set;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @CacheableRelocator
 public final class JarFilesRelocator extends SimpleRelocator {
     private static final String CLASS_SUFFIX = ".class";
-
-    private static final Logger log = LoggerFactory.getLogger(JarFilesRelocator.class);
+    private static final String SERVICE_PROVIDER_PREFIX = "META-INF/services/";
 
     private final Set<String> relocatable;
 
@@ -46,40 +43,28 @@ public final class JarFilesRelocator extends SimpleRelocator {
 
     @Override
     public String relocatePath(RelocatePathContext context) {
-        List<String> maybePair = ShadowJarConfigurationTask.splitMultiReleasePath(context.getPath());
-        if (!maybePair.isEmpty()) {
-            return relocateMultiReleasePath(maybePair, context);
+        List<String> maybePair = ShadowJarRelocationHelper.splitMultiReleasePath(context.getPath());
+        if (maybePair.isEmpty()) {
+            return super.relocatePath(context);
         }
-
-        String output = super.relocatePath(context);
-        log.debug("relocatePath('{}') -> {}", context.getPath(), output);
-        return output;
-    }
-
-    private String relocateMultiReleasePath(List<String> pair, RelocatePathContext context) {
-        RelocatePathContext newContext = new RelocatePathContext(pair.get(1));
-        String out = pair.get(0) + super.relocatePath(newContext);
-        log.debug("relocateMultiReleasePath('{}') -> {}", context.getPath(), out);
-        return out;
+        // Multi-release path: relocate the class portion, keep the META-INF/versions/N/ prefix
+        RelocatePathContext pathWithoutPrefix = new RelocatePathContext(maybePair.get(1));
+        return maybePair.get(0) + super.relocatePath(pathWithoutPrefix);
     }
 
     @Override
     public String relocateClass(RelocateClassContext context) {
         String className = context.getClassName();
-        String output;
         // Work around a poor interaction between ServiceFileTransformer and our
         // prefix configuration which otherwise results in prefixes being added
         // prior to 'META-INF', breaking service loading. The default SimpleRelocator
         // replaces the first instance of the expected prefix with the new prefix,
         // however this is problematic when the expected prefix is an empty string.
-        if (className != null && className.startsWith(ShadowJarConfigurationTask.SERVICE_PROVIDER_PREFIX)) {
-            String targetClassName = className.substring(ShadowJarConfigurationTask.SERVICE_PROVIDER_PREFIX.length());
+        if (className.startsWith(SERVICE_PROVIDER_PREFIX)) {
+            String targetClassName = className.substring(SERVICE_PROVIDER_PREFIX.length());
             RelocateClassContext serviceContext = new RelocateClassContext(targetClassName);
-            output = ShadowJarConfigurationTask.SERVICE_PROVIDER_PREFIX + super.relocateClass(serviceContext);
-        } else {
-            output = super.relocateClass(context);
+            return SERVICE_PROVIDER_PREFIX + super.relocateClass(serviceContext);
         }
-        log.debug("relocateClass('{}') -> {}", context.getClassName(), output);
-        return output;
+        return super.relocateClass(context);
     }
 }
