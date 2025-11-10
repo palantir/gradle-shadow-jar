@@ -1,12 +1,24 @@
 # Run ./gradlew writeVersionsLocks to regenerate this file. Blank lines are to minimize merge conflicts.
 
-com.fasterxml.woodstox:woodstox-core:7.1.0 (1 constraints: 8c0b43e6)
+com.fasterxml.jackson.core:jackson-annotations:2.20 (3 constraints: 6d3f6731)
+
+com.fasterxml.jackson.core:jackson-core:2.20.0 (4 constraints: 8056ceff)
+
+com.fasterxml.jackson.core:jackson-databind:2.20.0 (3 constraints: fd43a120)
+
+com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.20.0 (2 constraints: 8c36d494)
+
+com.fasterxml.jackson.datatype:jackson-datatype-guava:2.20.0 (2 constraints: 8c36d494)
+
+com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.20.0 (1 constraints: a51a8b21)
+
+com.fasterxml.woodstox:woodstox-core:7.1.1 (2 constraints: c822fc39)
 
 com.google.errorprone:error_prone_annotations:2.41.0 (8 constraints: 6a6c3391)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
-com.google.guava:guava:33.5.0-jre (5 constraints: 8e5ae51c)
+com.google.guava:guava:33.5.0-jre (7 constraints: 9a8f02f1)
 
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 
@@ -14,7 +26,15 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.gradleup.shadow:shadow-gradle-plugin:9.2.2 (1 constraints: 0f052036)
 
+com.palantir.gradle.consistentversions:gradle-consistent-versions:3.6.0 (1 constraints: 0b050c36)
+
+com.palantir.gradle.failure-reports:gradle-failure-reports-exceptions:1.2.0 (1 constraints: b71b1c46)
+
+com.palantir.gradle.idea-configuration:gradle-idea-configuration:0.7.0 (1 constraints: bb1b2646)
+
 commons-io:commons-io:2.21.0 (3 constraints: 69302d43)
+
+one.util:streamex:0.8.4 (1 constraints: c01b2d46)
 
 org.apache.ant:ant:1.10.15 (1 constraints: 8d11faf3)
 
@@ -34,7 +54,7 @@ org.codehaus.plexus:plexus-utils:4.0.2 (1 constraints: 2b1121d1)
 
 org.codehaus.plexus:plexus-xml:4.1.0 (1 constraints: 2a1122d1)
 
-org.codehaus.woodstox:stax2-api:4.2.2 (2 constraints: ba1b62b3)
+org.codehaus.woodstox:stax2-api:4.2.2 (3 constraints: f532881c)
 
 org.immutables:value:2.11.6 (1 constraints: 3c05383b)
 

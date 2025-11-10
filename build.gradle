@@ -58,6 +58,8 @@ dependencies {
     annotationProcessor 'org.immutables:value'
     compileOnly 'org.immutables:value::annotations'
 
+    compileOnly 'com.palantir.gradle.consistentversions:gradle-consistent-versions'
+
     testImplementation 'com.netflix.nebula:nebula-test'
     testImplementation 'commons-io:commons-io'
     testImplementation 'org.junit.jupiter:junit-jupiter'
