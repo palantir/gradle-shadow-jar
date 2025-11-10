@@ -19,17 +19,16 @@ package com.palantir.gradle.shadowjar;
 import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
-import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.gradle.api.Action;
+import org.gradle.api.NamedDomainObjectProvider;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -108,26 +107,29 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
     private void setupShadowJarToShadeTheCorrectDependencies(
             Project project, TaskProvider<ShadowJar> shadowJarProvider) {
-        Configuration shadeTransitively = project.getConfigurations().register("shadeTransitively", conf -> {
-            conf.setCanBeConsumed(false);
-            conf.setVisible(false);
-        }).get();
+        NamedDomainObjectProvider<Configuration> shadeTransitively = project.getConfigurations()
+                .register("shadeTransitively", conf -> {
+                    conf.setCanBeConsumed(false);
+                    conf.setVisible(false);
+                });
 
-        Configuration unshaded = project.getConfigurations().register("unshaded", conf -> {
-            conf.setCanBeConsumed(false);
-            conf.setVisible(false);
-        }).get();
+        NamedDomainObjectProvider<Configuration> unshaded = project.getConfigurations()
+                .register("unshaded", conf -> {
+                    conf.setCanBeConsumed(false);
+                    conf.setVisible(false);
+                });
 
-        Configuration rejectedFromShading = project.getConfigurations().register("rejectedFromShading", conf -> {
-            conf.setCanBeConsumed(false);
-            conf.setVisible(false);
-            conf.setCanBeResolved(false);
-        }).get();
+        NamedDomainObjectProvider<Configuration> rejectedFromShading = project.getConfigurations()
+                .register("rejectedFromShading", conf -> {
+                    conf.setCanBeConsumed(false);
+                    conf.setVisible(false);
+                    conf.setCanBeResolved(false);
+                });
 
         project.getConfigurations()
                 .named(JavaPlugin.RUNTIME_ELEMENTS_CONFIGURATION_NAME)
                 .configure(runtimeElements -> {
-                    runtimeElements.extendsFrom(rejectedFromShading);
+                    runtimeElements.extendsFrom(rejectedFromShading.get());
                 });
 
         ShadowJarVersionLock.lockConfiguration(project, shadeTransitively);
@@ -145,83 +147,92 @@ public class ShadowJarPlugin implements Plugin<Project> {
         // from another source, so this *should* be ok (there is a test for this).
         ShadowJarVersionLock.excludeConfigurationFromVersionsPropsInjection(project, rejectedFromShading);
 
-        unshaded.getIncoming().beforeResolve(_incoming -> {
-            // only process if the unshaded configuration is still unresolved. The GCV plugin creates an
-            // unshadedCopy configuration from the original and this beforeResolve Action is copied as well. That
-            // leads to errors when it tries to modify the original configuration below for a second time.
-            if (!unshaded.getState().equals(Configuration.State.UNRESOLVED)) {
-                return;
-            }
-            Stream.of(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME, JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
-                    .map(project.getConfigurations()::getByName)
-                    .forEach(classpathConf -> {
-                        unshaded.extendsFrom(classpathConf.getExtendsFrom().stream()
-                                .filter(extendsFromConf -> extendsFromConf != shadeTransitively)
-                                .toArray(Configuration[]::new));
-                    });
+        unshaded.configure(unshadedConf -> {
+            unshadedConf.getIncoming().beforeResolve(_incoming -> {
+                // only process if the unshaded configuration is still unresolved. The GCV plugin creates an
+                // unshadedCopy configuration from the original and this beforeResolve Action is copied as well. That
+                // leads to errors when it tries to modify the original configuration below for a second time.
+                if (!unshadedConf.getState().equals(Configuration.State.UNRESOLVED)) {
+                    return;
+                }
+                Stream.of(
+                                JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME,
+                                JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
+                        .map(project.getConfigurations()::getByName)
+                        .forEach(classpathConf -> {
+                            unshadedConf.extendsFrom(classpathConf.getExtendsFrom().stream()
+                                    .filter(extendsFromConf -> extendsFromConf != shadeTransitively.get())
+                                    .toArray(Configuration[]::new));
+                        });
+            });
         });
 
         project.getExtensions().getByType(SourceSetContainer.class).configureEach(sourceSet -> Stream.of(
                         sourceSet.getCompileClasspathConfigurationName(),
                         sourceSet.getRuntimeClasspathConfigurationName())
-                .map(project.getConfigurations()::getByName)
-                .forEach(conf -> conf.extendsFrom(shadeTransitively)));
+                .map(project.getConfigurations()::named) // Use named() instead of getByName()
+                .forEach(confProvider -> confProvider.configure(conf -> conf.extendsFrom(shadeTransitively.get()))));
 
-        Supplier<ShadowingCalculation> shadowingCalculation = Suppliers.memoize(() -> {
-            Set<ResolvedDependency> shadedModules = shadeTransitively
-                    .getResolvedConfiguration()
-                    .getLenientConfiguration()
-                    .getAllModuleDependencies();
+        Provider<ShadowingCalculation> shadowingCalculation =
+                shadeTransitively.zip(unshaded, (shadeTransitivelyConf, unshadedConf) -> {
+                    Set<ResolvedDependency> shadedModules = shadeTransitivelyConf
+                            .getResolvedConfiguration()
+                            .getLenientConfiguration()
+                            .getAllModuleDependencies();
 
-            Set<ResolvedDependency> unshadedModules = unshaded.getResolvedConfiguration()
-                    .getLenientConfiguration()
-                    .getAllModuleDependencies();
+                    Set<ResolvedDependency> unshadedModules = unshadedConf
+                            .getResolvedConfiguration()
+                            .getLenientConfiguration()
+                            .getAllModuleDependencies();
 
-            Set<ResolvedDependency> onlyShadedModules = Sets.difference(shadedModules, unshadedModules);
+                    Set<ResolvedDependency> onlyShadedModules = Sets.difference(shadedModules, unshadedModules);
 
-            Set<ResolvedDependency> directlyRejectedModules =
-                    onlyShadedModules.stream().filter(ShadowJarPlugin::isBanned).collect(Collectors.toSet());
+                    Set<ResolvedDependency> directlyRejectedModules = onlyShadedModules.stream()
+                            .filter(ShadowJarPlugin::isBanned)
+                            .collect(Collectors.toSet());
 
-            Set<ResolvedDependency> highestLevelRejectedModules =
-                    Sets.difference(directlyRejectedModules, allChildren(directlyRejectedModules));
+                    Set<ResolvedDependency> highestLevelRejectedModules =
+                            Sets.difference(directlyRejectedModules, allChildren(directlyRejectedModules));
 
-            Set<ResolvedDependency> highestLevelRejectedModulesThatArentDirectlyListed = Sets.filter(
-                    highestLevelRejectedModules,
-                    dependency -> moduleDoesNotExistDirectlyInConfiguration(shadeTransitively, dependency));
+                    Set<ResolvedDependency> highestLevelRejectedModulesThatArentDirectlyListed = Sets.filter(
+                            highestLevelRejectedModules,
+                            dependency -> moduleDoesNotExistDirectlyInConfiguration(shadeTransitivelyConf, dependency));
 
-            Set<ResolvedDependency> transitivelyRejectedModules =
-                    selfAndAllChildren(highestLevelRejectedModulesThatArentDirectlyListed);
+                    Set<ResolvedDependency> transitivelyRejectedModules =
+                            selfAndAllChildren(highestLevelRejectedModulesThatArentDirectlyListed);
 
-            Set<ResolvedDependency> acceptedModules = Sets.difference(onlyShadedModules, transitivelyRejectedModules);
+                    Set<ResolvedDependency> acceptedModules =
+                            Sets.difference(onlyShadedModules, transitivelyRejectedModules);
 
-            return ImmutableShadowingCalculation.builder()
-                    .acceptedShadedModules(acceptedModules)
-                    .rejectedShadedModules(highestLevelRejectedModulesThatArentDirectlyListed)
-                    .build();
-        });
+                    return ImmutableShadowingCalculation.builder()
+                            .acceptedShadedModules(acceptedModules)
+                            .rejectedShadedModules(highestLevelRejectedModulesThatArentDirectlyListed)
+                            .build();
+                });
 
-        rejectedFromShading
-                .getDependencies()
+        rejectedFromShading.configure(conf -> conf.getDependencies()
                 .addAllLater(project.getObjects()
                         .setProperty(Dependency.class)
-                        .value(project.provider(() -> shadowingCalculation.get().rejectedShadedModules().stream()
+                        .value(shadowingCalculation.map(calc -> calc.rejectedShadedModules().stream()
                                 .map(this::depToString)
                                 .map(project.getDependencies()::create)
-                                .collect(Collectors.toSet()))));
+                                .collect(Collectors.toSet())))));
 
         shadowJarProvider.configure(shadowJar -> {
-            shadowJar.getConfigurations().set(Collections.singletonList(shadeTransitively));
+            shadowJar.getConfigurations().set(shadeTransitively.map(Collections::singletonList));
 
             String prefix = String.join(".", "shadow", project.getGroup().toString(), project.getName())
                     .replace('-', '_')
                     .toLowerCase(Locale.US);
 
-            Provider<FileCollection> jars = shadowJar.getDependencyFilter().map(filter -> {
-                filter.include(shadowingCalculation.get().acceptedShadedModules()::contains);
-                return filter.resolve(shadowJar.getConfigurations().get());
-            });
+            Provider<FileCollection> jars = shadowJar
+                    .getDependencyFilter()
+                    .zip(shadowingCalculation, (filter, calc) -> {
+                        filter.include(calc.acceptedShadedModules()::contains);
+                        return filter.resolve(shadowJar.getConfigurations().get());
+                    });
 
-            shadowJar.doFirst("configure-shadow-relocation", new Action<Task>() {
+            shadowJar.doFirst("configureShadowRelocation", new Action<Task>() {
                 @Override
                 public void execute(Task _task) {
                     Set<String> pathsInJars = ShadowJarRelocationHelper.scanJarsForPaths(jars.get());
