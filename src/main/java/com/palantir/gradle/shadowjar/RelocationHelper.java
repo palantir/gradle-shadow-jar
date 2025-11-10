@@ -29,23 +29,21 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
+import org.gradle.api.file.FileCollection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// Originally taken from https://github.com/GradleUp/shadow/blob/9.2.2/src/main/groovy/com/github/jengelman/
-// gradle/plugins/shadow/tasks/ConfigureShadowRelocation.groovy
-// Note: ConfigureShadowRelocation was removed in Shadow 8.1.0 in favor of enableAutoRelocation property
-public final class ShadowJarRelocationHelper {
+public final class RelocationHelper {
 
-    private static final Logger log = LoggerFactory.getLogger(ShadowJarRelocationHelper.class);
+    private static final Logger log = LoggerFactory.getLogger(RelocationHelper.class);
 
-    private ShadowJarRelocationHelper() {}
+    private RelocationHelper() {}
 
     // Multi-Release JAR Files are defined in https://openjdk.java.net/jeps/238
     private static final Pattern MULTIRELEASE_JAR_PREFIX = Pattern.compile("^META-INF/versions/\\d+/");
 
     /** Scan jars and return all paths found within them */
-    public static Set<String> scanJarsForPaths(org.gradle.api.file.FileCollection jars) {
+    public static Set<String> scanJarsForPaths(FileCollection jars) {
         return jars.getFiles().stream()
                 .flatMap(jar -> {
                     try (JarFile jarFile = new JarFile(jar)) {

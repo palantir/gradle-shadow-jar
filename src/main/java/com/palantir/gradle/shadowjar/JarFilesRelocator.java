@@ -43,7 +43,7 @@ public final class JarFilesRelocator extends SimpleRelocator {
 
     @Override
     public String relocatePath(RelocatePathContext context) {
-        List<String> maybePair = ShadowJarRelocationHelper.splitMultiReleasePath(context.getPath());
+        List<String> maybePair = RelocationHelper.splitMultiReleasePath(context.getPath());
         if (maybePair.isEmpty()) {
             return super.relocatePath(context);
         }

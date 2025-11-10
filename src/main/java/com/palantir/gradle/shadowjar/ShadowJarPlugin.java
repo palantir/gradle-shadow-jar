@@ -235,9 +235,9 @@ public class ShadowJarPlugin implements Plugin<Project> {
             shadowJar.doFirst("configureShadowRelocation", new Action<Task>() {
                 @Override
                 public void execute(Task _task) {
-                    Set<String> pathsInJars = ShadowJarRelocationHelper.scanJarsForPaths(jars.get());
-                    Set<String> relocatable = ShadowJarRelocationHelper.computeRelocatablePaths(pathsInJars);
-                    boolean hasMultiRelease = ShadowJarRelocationHelper.hasMultiRelease(pathsInJars);
+                    Set<String> pathsInJars = RelocationHelper.scanJarsForPaths(jars.get());
+                    Set<String> relocatable = RelocationHelper.computeRelocatablePaths(pathsInJars);
+                    boolean hasMultiRelease = RelocationHelper.hasMultiRelease(pathsInJars);
 
                     shadowJar.relocate(new JarFilesRelocator(relocatable, prefix + "."));
 
