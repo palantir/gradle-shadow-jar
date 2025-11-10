@@ -16,18 +16,19 @@
 
 package com.palantir.gradle.shadowjar
 
+import com.palantir.gradle.plugintesting.ConfigurationCacheSpec
 import groovy.transform.CompileStatic
 import groovy.xml.XmlUtil
+import org.gradle.testkit.runner.BuildResult
+
 import java.nio.charset.StandardCharsets
 import java.util.jar.JarFile
 import java.util.stream.Collectors
-import nebula.test.IntegrationSpec
 import nebula.test.dependencies.DependencyGraph
 import nebula.test.dependencies.GradleDependencyGenerator
-import nebula.test.functional.ExecutionResult
 import org.apache.commons.io.IOUtils
 
-class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
+class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
     private static final String MAVEN_ROOT = 'build/repo'
 
     def setup() {
@@ -474,15 +475,12 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
             dependencies {
                 shadeTransitively 'org.apiguardian:apiguardian-api:1.1.0'
             }
-            
+
             // This replicates what the 'com.palantir.sls-recommended-dependencies' plugin does
-            task addManifestItem {
-                doFirst {
-                    jar.manifest.attributes('Foo': 'Bar')
-                }
+            // Using configuration-time wiring for CC compatibility
+            tasks.named('jar', Jar).configure { jarTask ->
+                jarTask.manifest.attributes('Foo': 'Bar')
             }
-            
-            jar.dependsOn addManifestItem
         '''
 
         when:
@@ -507,19 +505,22 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
             dependencies {
                 shadeTransitively 'org.slf4j:slf4j-log4j12:1.7.26'
             }
-            
-            task printRuntimeClasspath {
+
+            // Use simple task to just print files on classpath (CC-compatible)
+            tasks.register('printRuntimeClasspath') {
+                def files = configurations.runtimeClasspath.incoming.artifactView {}.files
                 doLast {
-                    println configurations.runtimeClasspath.incoming.resolutionResult.allDependencies.collect { it }
+                    println files.collect { it.name }
                 }
             }
         '''.stripIndent(true)
 
         when:
-        def output = runTasksAndCheckSuccess('printRuntimeClasspath').standardOutput
+        def output = runTasksAndCheckSuccess('printRuntimeClasspath').output
 
         then:
-        output.contains('org.slf4j:slf4j-log4j12:1.7.30')
+        // The output now shows JAR filenames with versions instead of coordinates
+        output.contains('slf4j-log4j12-1.7.30.jar')
     }
 
     def 'checkUnusedConstraints runs correctly'() {
@@ -569,13 +570,13 @@ class ShadowJarPluginIntegrationSpec extends IntegrationSpec {
     }
 
     @CompileStatic
-    private ExecutionResult runTasksAndCheckSuccess(String... args) {
-        ExecutionResult executionResult = runTasks((['--warning-mode=none', '--write-locks'] as String[]) + args)
-        println executionResult.getStandardOutput()
-        println executionResult.getStandardError()
-        executionResult.rethrowFailure()
+    private BuildResult runTasksAndCheckSuccess(String... args) {
+        // Running write locks causes the configuration cache to not be reused so don't run as part of runTasksWithConfigurationCacheAndCheck
+        runTasksWithConfigurationCache('--write-locks')
+        BuildResult result = runTasksWithConfigurationCacheAndCheck((['--warning-mode=none'] as String[]) + args)
+        println result.output
 
-        return executionResult
+        return result
     }
 
 }
