@@ -47,8 +47,9 @@ import org.gradle.api.tasks.TaskAction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// Originally taken from https://github.com/johnrengelman/shadow/blob/d4e649d7dd014bfdd9575bfec92d7e74c3cf1aca/
-// src/main/groovy/com/github/jengelman/gradle/plugins/shadow/tasks/ConfigureShadowRelocation.groovy
+// Originally taken from https://github.com/GradleUp/shadow/blob/9.2.2/src/main/groovy/com/github/jengelman/
+// gradle/plugins/shadow/tasks/ConfigureShadowRelocation.groovy
+// Note: ConfigureShadowRelocation was removed in Shadow 8.1.0 in favor of enableAutoRelocation property
 public abstract class ShadowJarConfigurationTask extends DefaultTask {
 
     private static final Logger log = LoggerFactory.getLogger(ShadowJarConfigurationTask.class);
