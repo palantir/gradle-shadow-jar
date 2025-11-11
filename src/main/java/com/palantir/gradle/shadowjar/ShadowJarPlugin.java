@@ -37,6 +37,7 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ExternalModuleDependency;
 import org.gradle.api.artifacts.ResolvedArtifact;
 import org.gradle.api.artifacts.ResolvedDependency;
+import org.gradle.api.file.DuplicatesStrategy;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
@@ -232,6 +233,8 @@ public class ShadowJarPlugin implements Plugin<Project> {
                             .toArray()));
 
             shadowJar.getIncludedDependencies().setFrom(jars);
+
+            shadowJar.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
 
             shadowJar.doFirst("configureShadowRelocation", new Action<Task>() {
                 @Override
