@@ -229,12 +229,12 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
         Provider<Boolean> hasMultiRelease = pathsInJars.map(RelocationHelper::hasMultiRelease);
 
-        String prefix = String.join(".", "shadow", project.getGroup().toString(), project.getName())
-                .replace('-', '_')
-                .toLowerCase(Locale.US);
-
         shadowJarProvider.configure(shadowJar -> {
             shadowJar.getConfigurations().set(shadeTransitively.map(Collections::singletonList));
+
+            String prefix = String.join(".", "shadow", project.getGroup().toString(), project.getName())
+                    .replace('-', '_')
+                    .toLowerCase(Locale.US);
 
             shadowJar.getIncludedDependencies().setFrom(jars);
 
