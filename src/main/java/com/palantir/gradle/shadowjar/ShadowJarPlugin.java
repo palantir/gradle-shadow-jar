@@ -236,16 +236,17 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
             shadowJar.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
 
+            Provider<Set<String>> pathsInJars = jars.map(RelocationHelper::scanJarsForPaths);
+
+            Provider<Set<String>> relocatablePaths = pathsInJars.map(RelocationHelper::computeRelocatablePaths);
+
+            shadowJar.getRelocators().add(new JarFilesRelocator(relocatablePaths, prefix + "."));
+
+            // Multi-release detection and transformer setup must happen during execution
             shadowJar.doFirst("configureShadowRelocation", new Action<Task>() {
                 @Override
                 public void execute(Task _task) {
-                    Set<String> pathsInJars = RelocationHelper.scanJarsForPaths(shadowJar.getIncludedDependencies());
-                    Set<String> relocatable = RelocationHelper.computeRelocatablePaths(pathsInJars);
-                    boolean hasMultiRelease = RelocationHelper.hasMultiRelease(pathsInJars);
-
-                    shadowJar.relocate(new JarFilesRelocator(relocatable, prefix + "."));
-
-                    if (hasMultiRelease) {
+                    if (RelocationHelper.hasMultiRelease(pathsInJars.get())) {
                         shadowJar.transform(ComposableManifestAppenderTransformer.class, transformer -> {
                             transformer.append("Multi-Release", true);
                         });

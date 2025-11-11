@@ -22,7 +22,9 @@ import com.github.jengelman.gradle.plugins.shadow.relocation.RelocatePathContext
 import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
 import com.google.common.collect.ImmutableList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import org.gradle.api.provider.Provider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,16 +35,25 @@ public final class JarFilesRelocator extends SimpleRelocator {
     private static final String CLASS_SUFFIX = ".class";
     private static final String SERVICE_PROVIDER_PREFIX = "META-INF/services/";
 
-    private final Set<String> relocatable;
+    private final Provider<Set<String>> relocatableProvider;
+    private Optional<Set<String>> relocatable = Optional.empty();
 
-    public JarFilesRelocator(Set<String> relocatable, String shadedPrefix) {
+    public JarFilesRelocator(Provider<Set<String>> relocatableProvider, String shadedPrefix) {
         super("", shadedPrefix, ImmutableList.of(), ImmutableList.of());
-        this.relocatable = relocatable;
+        this.relocatableProvider = relocatableProvider;
+    }
+
+    private Set<String> getRelocatable() {
+        if (relocatable.isEmpty()) {
+            relocatable = Optional.of(relocatableProvider.get());
+        }
+        return relocatable.get();
     }
 
     @Override
     public boolean canRelocatePath(String path) {
-        return relocatable.contains(path + CLASS_SUFFIX) || relocatable.contains(path);
+        return getRelocatable().contains(path + CLASS_SUFFIX)
+                || getRelocatable().contains(path);
     }
 
     @Override

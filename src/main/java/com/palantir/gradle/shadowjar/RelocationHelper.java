@@ -44,6 +44,7 @@ public final class RelocationHelper {
 
     /** Scan jars and return all paths found within them */
     public static Set<String> scanJarsForPaths(FileCollection jars) {
+        System.out.println("SCANNING JARS FOR PATHS");
         return jars.getFiles().stream()
                 .flatMap(jar -> {
                     try (JarFile jarFile = new JarFile(jar)) {
