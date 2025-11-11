@@ -27,11 +27,9 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectProvider;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ExternalModuleDependency;
@@ -242,17 +240,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
             shadowJar.getRelocators().add(new JarFilesRelocator(relocatablePaths, prefix + "."));
 
-            // Multi-release detection and transformer setup must happen during execution
-            shadowJar.doFirst("configureShadowRelocation", new Action<Task>() {
-                @Override
-                public void execute(Task _task) {
-                    if (RelocationHelper.hasMultiRelease(pathsInJars.get())) {
-                        shadowJar.transform(ComposableManifestAppenderTransformer.class, transformer -> {
-                            transformer.append("Multi-Release", true);
-                        });
-                    }
-                }
-            });
+            shadowJar.getTransformers().add(new ConditionalMultiReleaseTransformer(pathsInJars));
         });
     }
 
