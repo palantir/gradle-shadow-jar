@@ -21,7 +21,6 @@ import com.github.jengelman.gradle.plugins.shadow.transformers.ResourceTransform
 import com.github.jengelman.gradle.plugins.shadow.transformers.TransformerContext;
 import com.google.common.base.Suppliers;
 import java.io.IOException;
-import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.tools.zip.ZipOutputStream;
 import org.gradle.api.file.FileTreeElement;
@@ -36,14 +35,12 @@ public final class ConditionalMultiReleaseTransformer implements ResourceTransfo
     private final ComposableManifestAppenderTransformer delegate = new ComposableManifestAppenderTransformer();
     private final Supplier<Boolean> shouldTransformSupplier;
 
-    public ConditionalMultiReleaseTransformer(Provider<Set<String>> pathsInJarsProvider) {
+    public ConditionalMultiReleaseTransformer(Provider<Boolean> hasMultiReleaseProvider) {
         this.shouldTransformSupplier = Suppliers.memoize(() -> {
-            Set<String> paths = pathsInJarsProvider.get();
-            boolean hasMultiRelease = RelocationHelper.hasMultiRelease(paths);
-            if (hasMultiRelease) {
+            if (hasMultiReleaseProvider.get()) {
                 delegate.append("Multi-Release", true);
             }
-            return hasMultiRelease;
+            return hasMultiReleaseProvider.get();
         });
     }
 
