@@ -223,10 +223,11 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     .replace('-', '_')
                     .toLowerCase(Locale.US);
 
-            Provider<FileCollection> jars = shadowJar.getDependencyFilter().map(filter -> {
-                filter.include(shadowingCalculation.get().acceptedShadedModules()::contains);
-                return filter.resolve(shadowJar.getConfigurations().get());
-            });
+            Provider<FileCollection> jars = shadowingCalculation.flatMap(
+                    calc -> shadowJar.getDependencyFilter().map(filter -> {
+                        filter.include(calc.acceptedShadedModules()::contains);
+                        return filter.resolve(shadowJar.getConfigurations().get());
+                    }));
 
             Provider<Set<String>> pathsInJars = jars.map(RelocationHelper::scanJarsForPaths);
 
