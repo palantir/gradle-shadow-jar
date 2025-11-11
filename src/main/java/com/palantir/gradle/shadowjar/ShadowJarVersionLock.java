@@ -33,7 +33,7 @@ public final class ShadowJarVersionLock {
     public static void excludeConfigurationFromVersionsPropsInjection(
             Project project, NamedDomainObjectProvider<Configuration> configuration) {
         VersionRecommendationsExtension versionRecommendations =
-                project.getExtensions().getByType(VersionRecommendationsExtension.class);
+                project.getRootProject().getExtensions().getByType(VersionRecommendationsExtension.class);
         versionRecommendations.excludeConfigurations(configuration.getName());
     }
 }

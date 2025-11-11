@@ -35,6 +35,7 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ExternalModuleDependency;
+import org.gradle.api.artifacts.ResolvedArtifact;
 import org.gradle.api.artifacts.ResolvedDependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
@@ -224,17 +225,18 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     .replace('-', '_')
                     .toLowerCase(Locale.US);
 
-            Provider<FileCollection> jars = shadowJar
-                    .getDependencyFilter()
-                    .zip(shadowingCalculation, (filter, calc) -> {
-                        filter.include(calc.acceptedShadedModules()::contains);
-                        return filter.resolve(shadowJar.getConfigurations().get());
-                    });
+            Provider<FileCollection> jars =
+                    shadowingCalculation.map(calc -> project.files(calc.acceptedShadedModules().stream()
+                            .flatMap(dep -> dep.getModuleArtifacts().stream())
+                            .map(ResolvedArtifact::getFile)
+                            .toArray()));
+
+            shadowJar.getIncludedDependencies().setFrom(jars);
 
             shadowJar.doFirst("configureShadowRelocation", new Action<Task>() {
                 @Override
                 public void execute(Task _task) {
-                    Set<String> pathsInJars = RelocationHelper.scanJarsForPaths(jars.get());
+                    Set<String> pathsInJars = RelocationHelper.scanJarsForPaths(shadowJar.getIncludedDependencies());
                     Set<String> relocatable = RelocationHelper.computeRelocatablePaths(pathsInJars);
                     boolean hasMultiRelease = RelocationHelper.hasMultiRelease(pathsInJars);
 

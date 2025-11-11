@@ -533,6 +533,50 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         runTasksAndCheckSuccess('checkUnusedConstraints')
     }
 
+    def 'should only include shadeTransitively dependencies in jar, not implementation or runtimeOnly dependencies'() {
+        when:
+        buildFile << """
+            apply plugin: 'java-library'
+
+            dependencies {
+                // These should be shaded and included in the jar
+                shadeTransitively 'com.google.guava:guava:28.2-jre'
+
+                // These should be in POM but NOT in jar
+                implementation 'org.checkerframework:checker-qual:3.10.0'
+                runtimeOnly 'org.apiguardian:apiguardian-api:1.1.0'
+                api 'com.google.code.findbugs:jsr305:3.0.2'
+            }
+        """.stripIndent()
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        def dependenciesText = dependenciesInPom()
+
+        // Dependencies not in shadeTransitively should be in POM
+        assert dependenciesText.contains('<artifactId>checker-qual</artifactId>')
+        assert dependenciesText.contains('<artifactId>apiguardian-api</artifactId>')
+        assert dependenciesText.contains('<artifactId>jsr305</artifactId>')
+
+        // Shaded dependency should NOT be in POM
+        assert !dependenciesText.contains('<artifactId>guava</artifactId>')
+
+        def jarEntryNames = jarEntryNames()
+
+        // Shaded dependencies should be in jar with relocation
+        assert jarEntryNames.contains(relocatedClass('com/google/common/collect/ImmutableList.class'))
+
+        // Implementation/runtimeOnly/api dependencies should NOT be in jar at all (neither shaded nor unshaded)
+        assert !jarEntryNames.contains('org/checkerframework/checker/nullness/qual/Nullable.class')
+        assert !jarEntryNames.contains(relocatedClass('org/checkerframework/checker/nullness/qual/Nullable.class'))
+        assert !jarEntryNames.contains('org/apiguardian/api/API.class')
+        assert !jarEntryNames.contains(relocatedClass('org/apiguardian/api/API.class'))
+        // jsr305 is declared as api, so it should NOT be in the jar (even though it's also a transitive of guava)
+        assert !jarEntryNames.contains('javax/annotation/Nullable.class')
+        assert !jarEntryNames.contains(relocatedClass('javax/annotation/Nullable.class'))
+    }
+
     @CompileStatic
     private Set<String> jarEntryNames() {
         JarFile shadowJar = shadowJarFile()
