@@ -231,7 +231,6 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     .replace('-', '_')
                     .toLowerCase(Locale.US);
 
-            // Now includedDependencies will automatically use our dependencyFilter and configurations
             Provider<FileCollection> includedDepsProvider = project.provider(shadowJar::getIncludedDependencies);
 
             Provider<Set<String>> pathsInJars = includedDepsProvider.map(RelocationHelper::scanJarsForPaths);
