@@ -220,7 +220,6 @@ public class ShadowJarPlugin implements Plugin<Project> {
         shadowJarProvider.configure(shadowJar -> {
             shadowJar.getConfigurations().set(shadeTransitively.map(Collections::singletonList));
 
-            // Configure the dependency filter to only include accepted modules from shadowingCalculation
             shadowJar.getDependencyFilter().set(shadowingCalculation.map(calc -> {
                 DefaultDependencyFilter filter = new DefaultDependencyFilter(project);
                 filter.include(calc.acceptedShadedModules()::contains);
