@@ -17,9 +17,11 @@
 package com.palantir.gradle.shadowjar
 
 import com.palantir.gradle.plugintesting.ConfigurationCacheSpec
+import com.palantir.gradle.testing.execution.TaskResult
 import groovy.transform.CompileStatic
 import groovy.xml.XmlUtil
 import org.gradle.testkit.runner.BuildResult
+import org.gradle.testkit.runner.TaskOutcome
 
 import java.nio.charset.StandardCharsets
 import java.util.jar.JarFile
@@ -575,6 +577,26 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         // jsr305 is declared as api, so it should NOT be in the jar (even though it's also a transitive of guava)
         assert !jarEntryNames.contains('javax/annotation/Nullable.class')
         assert !jarEntryNames.contains(relocatedClass('javax/annotation/Nullable.class'))
+    }
+
+    def 'shadowJar task should be cacheable'() {
+        when:
+        buildFile << """
+            dependencies {
+                shadeTransitively 'com.google.guava:guava:28.2-jre'
+            }
+        """.stripIndent()
+
+        writeHelloWorld()
+
+        then:
+        runTasksAndCheckSuccess('--build-cache', 'shadowJar')
+
+        when:
+        def rerun = runTasksAndCheckSuccess('--build-cache', 'clean', 'shadowJar')
+
+        then:
+        rerun.tasks(TaskOutcome.FROM_CACHE).path.contains(':shadowJar')
     }
 
     @CompileStatic
