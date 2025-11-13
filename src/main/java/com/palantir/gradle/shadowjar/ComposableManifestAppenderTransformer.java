@@ -20,6 +20,7 @@ import com.github.jengelman.gradle.plugins.shadow.transformers.ResourceTransform
 import com.github.jengelman.gradle.plugins.shadow.transformers.TransformerContext;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -59,10 +60,12 @@ public final class ComposableManifestAppenderTransformer implements ResourceTran
     }
 
     @Override
-    public void transform(TransformerContext context) throws IOException {
+    public void transform(TransformerContext context) {
         if (manifestContents.length == 0) {
             try (InputStream is = context.getInputStream()) {
                 manifestContents = is.readAllBytes();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to read manifest from " + context.getPath(), e);
             }
         }
     }
@@ -73,26 +76,30 @@ public final class ComposableManifestAppenderTransformer implements ResourceTran
     }
 
     @Override
-    public void modifyOutputStream(ZipOutputStream os, boolean preserveFileTimestamps) throws IOException {
-        ZipEntry entry = zipEntry(JarFile.MANIFEST_NAME, preserveFileTimestamps);
+    public void modifyOutputStream(ZipOutputStream os, boolean preserveFileTimestamps) {
+        try {
+            ZipEntry entry = zipEntry(JarFile.MANIFEST_NAME, preserveFileTimestamps);
 
-        os.putNextEntry(entry);
-        // Change: Trim existing file contents and add a single trailing newline
-        os.write(trimWhitespace(manifestContents));
-        os.write(EOL);
-
-        if (!attributes.isEmpty()) {
-            for (Attribute attribute : attributes) {
-                os.write(attribute.name.getBytes(StandardCharsets.UTF_8));
-                os.write(SEPARATOR);
-                os.write(attribute.value.toString().getBytes(StandardCharsets.UTF_8));
-                os.write(EOL);
-            }
+            os.putNextEntry(entry);
+            // Change: Trim existing file contents and add a single trailing newline
+            os.write(trimWhitespace(manifestContents));
             os.write(EOL);
-            attributes.clear();
-        }
 
-        os.closeEntry();
+            if (!attributes.isEmpty()) {
+                for (Attribute attribute : attributes) {
+                    os.write(attribute.name.getBytes(StandardCharsets.UTF_8));
+                    os.write(SEPARATOR);
+                    os.write(attribute.value.toString().getBytes(StandardCharsets.UTF_8));
+                    os.write(EOL);
+                }
+                os.write(EOL);
+                attributes.clear();
+            }
+
+            os.closeEntry();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to write manifest to output stream", e);
+        }
     }
 
     // Change: New method
