@@ -31,8 +31,8 @@ import org.apache.tools.zip.ZipOutputStream;
 import org.gradle.api.file.FileTreeElement;
 import org.gradle.api.tasks.Input;
 
-// Originally taken from https://github.com/GradleUp/shadow/blob/9.2.2/src/main/kotlin/com/github/jengelman/gradle/
-// plugins/shadow/transformers/ManifestAppenderTransformer.kt
+// Originally taken from
+// https://github.com/GradleUp/shadow/blob/9.2.2/src/main/kotlin/com/github/jengelman/gradle/plugins/shadow/transformers/ManifestAppenderTransformer.kt
 public final class ComposableManifestAppenderTransformer implements ResourceTransformer {
     private static final byte[] EOL = "\r\n".getBytes(StandardCharsets.UTF_8);
     private static final byte[] SEPARATOR = ": ".getBytes(StandardCharsets.UTF_8);
