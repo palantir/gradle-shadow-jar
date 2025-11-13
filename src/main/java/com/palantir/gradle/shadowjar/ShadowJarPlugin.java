@@ -18,6 +18,7 @@ package com.palantir.gradle.shadowjar;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
+import com.github.jengelman.gradle.plugins.shadow.internal.DefaultDependencyFilter;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -219,23 +220,25 @@ public class ShadowJarPlugin implements Plugin<Project> {
         shadowJarProvider.configure(shadowJar -> {
             shadowJar.getConfigurations().set(shadeTransitively.map(Collections::singletonList));
 
+            // Configure the dependency filter to only include accepted modules from shadowingCalculation
+            shadowJar.getDependencyFilter().set(shadowingCalculation.map(calc -> {
+                DefaultDependencyFilter filter = new DefaultDependencyFilter(project);
+                filter.include(calc.acceptedShadedModules()::contains);
+                return filter;
+            }));
+
             String prefix = String.join(".", "shadow", project.getGroup().toString(), project.getName())
                     .replace('-', '_')
                     .toLowerCase(Locale.US);
 
-            Provider<FileCollection> jars = shadowingCalculation.flatMap(
-                    calc -> shadowJar.getDependencyFilter().map(filter -> {
-                        filter.include(calc.acceptedShadedModules()::contains);
-                        return filter.resolve(shadowJar.getConfigurations().get());
-                    }));
+            // Now includedDependencies will automatically use our dependencyFilter and configurations
+            Provider<FileCollection> includedDepsProvider = project.provider(shadowJar::getIncludedDependencies);
 
-            Provider<Set<String>> pathsInJars = jars.map(RelocationHelper::scanJarsForPaths);
+            Provider<Set<String>> pathsInJars = includedDepsProvider.map(RelocationHelper::scanJarsForPaths);
 
             Provider<Set<String>> relocatablePaths = pathsInJars.map(RelocationHelper::computeRelocatablePaths);
 
             Provider<Boolean> hasMultiRelease = pathsInJars.map(RelocationHelper::hasMultiRelease);
-
-            shadowJar.getIncludedDependencies().setFrom(jars);
 
             shadowJar.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
 
