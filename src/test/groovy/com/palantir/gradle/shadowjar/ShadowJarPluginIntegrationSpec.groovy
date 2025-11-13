@@ -613,8 +613,8 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
     @CompileStatic
     private BuildResult runTasksAndCheckSuccess(String... args) {
         // Running write locks causes the configuration cache to not be reused so don't run as part of runTasksWithConfigurationCacheAndCheck
-        runTasksWithConfigurationCache('--write-locks')
-        BuildResult result = runTasksWithConfigurationCacheAndCheck((['--warning-mode=none'] as String[]) + args)
+        runTasks('--write-locks')
+        BuildResult result = runTasks((['--warning-mode=none'] as String[]) + args)
         println result.output
 
         return result

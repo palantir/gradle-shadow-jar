@@ -174,6 +174,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
         Provider<ShadowingCalculation> shadowingCalculation =
                 shadeTransitively.zip(unshaded, (shadeTransitivelyConf, unshadedConf) -> {
+                    System.out.println("CAKE");
                     Set<ResolvedDependency> shadedModules = shadeTransitivelyConf
                             .getResolvedConfiguration()
                             .getLenientConfiguration()

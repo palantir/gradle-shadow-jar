@@ -20,7 +20,6 @@ import com.github.jengelman.gradle.plugins.shadow.transformers.CacheableTransfor
 import com.github.jengelman.gradle.plugins.shadow.transformers.ResourceTransformer;
 import com.github.jengelman.gradle.plugins.shadow.transformers.TransformerContext;
 import com.google.common.base.Suppliers;
-import java.io.IOException;
 import java.util.function.Supplier;
 import org.apache.tools.zip.ZipOutputStream;
 import org.gradle.api.file.FileTreeElement;
@@ -50,7 +49,7 @@ public final class ConditionalMultiReleaseTransformer implements ResourceTransfo
     }
 
     @Override
-    public void transform(TransformerContext context) throws IOException {
+    public void transform(TransformerContext context) {
         if (shouldTransformSupplier.get()) {
             delegate.transform(context);
         }
@@ -62,7 +61,7 @@ public final class ConditionalMultiReleaseTransformer implements ResourceTransfo
     }
 
     @Override
-    public void modifyOutputStream(ZipOutputStream os, boolean preserveFileTimestamps) throws IOException {
+    public void modifyOutputStream(ZipOutputStream os, boolean preserveFileTimestamps) {
         if (shouldTransformSupplier.get()) {
             delegate.modifyOutputStream(os, preserveFileTimestamps);
         }
