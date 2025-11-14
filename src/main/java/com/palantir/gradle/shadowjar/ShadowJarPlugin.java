@@ -225,7 +225,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
                             return false;
                         }
 
-                        // If it's a direct shaded dependency, always shade it
+                        // If it's a direct-shaded dependency, always shade it
                         if (shadedDirectModules.contains(candidate)) {
                             return true;
                         }
