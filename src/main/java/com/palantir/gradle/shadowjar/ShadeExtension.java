@@ -17,8 +17,8 @@
 package com.palantir.gradle.shadowjar;
 
 import groovy.lang.Closure;
+import java.util.Optional;
 import java.util.function.Consumer;
-import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ExternalModuleDependency;
@@ -37,32 +37,21 @@ import org.gradle.api.artifacts.ExternalModuleDependency;
  * }
  * </pre>
  */
-public final class ShadeJustExtension {
-    private final Project project;
-    private final ShadeJustRegistry registry;
-    private final String configurationName;
-    private final Consumer<Dependency> postAddCallback;
-    private final boolean allowCustomFilters;
-
-    private ShadeJustExtension(
-            Project project,
-            ShadeJustRegistry registry,
-            String configurationName,
-            Consumer<Dependency> postAddCallback,
-            boolean allowCustomFilters) {
-        this.project = project;
-        this.registry = registry;
-        this.configurationName = configurationName;
-        this.postAddCallback = postAddCallback;
-        this.allowCustomFilters = allowCustomFilters;
-    }
+public record ShadeExtension(
+        Project project,
+        ShadeRegistry registry,
+        String configurationName,
+        Optional<Consumer<Dependency>> postAddCallback,
+        boolean allowCustomFilters) {
 
     /**
      * Registers the extension with the project's dependency handler.
      * This makes the method available in the dependencies {} block.
      */
-    public static void registerWith(Project project, ShadeJustRegistry registry, String name, String configurationName) {
-        registerWith(project, registry, name, configurationName, null, true);
+    public static void registerWith(Project project, ShadeRegistry registry, String name, String configurationName) {
+        ShadeExtension extension =
+                new ShadeExtension(project, registry, configurationName, Optional.empty(), true);
+        project.getDependencies().getExtensions().add(name, extension);
     }
 
     /**
@@ -71,13 +60,13 @@ public final class ShadeJustExtension {
      */
     public static void registerWith(
             Project project,
-            ShadeJustRegistry registry,
+            ShadeRegistry registry,
             String name,
             String configurationName,
             Consumer<Dependency> postAddCallback,
             boolean allowCustomFilters) {
-        ShadeJustExtension extension =
-                new ShadeJustExtension(project, registry, configurationName, postAddCallback, allowCustomFilters);
+        ShadeExtension extension = new ShadeExtension(
+                project, registry, configurationName, Optional.of(postAddCallback), allowCustomFilters);
         // Add as a public extension to DependencyHandler using Groovy convention
         // The name makes methods on this object callable as dependencies.{name}(...)
         project.getDependencies().getExtensions().add(name, extension);
@@ -92,8 +81,8 @@ public final class ShadeJustExtension {
      */
     public Dependency call(Object dependencyNotation) {
         Dependency dep = project.getDependencies().add(configurationName, dependencyNotation);
-        if (postAddCallback != null && dep instanceof ExternalModuleDependency) {
-            postAddCallback.accept(dep);
+        if (dep instanceof ExternalModuleDependency) {
+            postAddCallback.ifPresent(callback -> callback.accept(dep));
         }
         return dep;
     }
@@ -102,14 +91,14 @@ public final class ShadeJustExtension {
      * Adds a dependency to the configuration with configuration via Groovy closure.
      *
      * @param dependencyNotation the dependency notation (e.g., "group:name:version")
-     * @param configureClosure closure to configure the ShadeJustDependencySpec
+     * @param configureClosure closure to configure the ShadeDependencySpec
      * @return the created Dependency
      */
     public Dependency call(Object dependencyNotation, Closure<Void> configureClosure) {
         Dependency dep = project.getDependencies().add(configurationName, dependencyNotation);
 
         if (dep instanceof ExternalModuleDependency) {
-            ShadeJustDependencySpec spec = new ShadeJustDependencySpec();
+            ShadeDependencySpec spec = new ShadeDependencySpec();
 
             // Configure the spec using the closure
             configureClosure.setDelegate(spec);
@@ -119,19 +108,16 @@ public final class ShadeJustExtension {
             // Check if a custom filter was provided when it's not allowed
             if (!allowCustomFilters && spec.getTransitiveFilter().isPresent()) {
                 throw new IllegalArgumentException(
-                        "shadeTransitively() does not support custom transitiveFilter. "
-                                + "All transitives are automatically shaded. Use shadeJust() if you need to filter transitives.");
+                        "shadeTransitively() does not support custom transitiveFilter. All transitives are"
+                                + " automatically shaded. Use shadeJust() if you need to filter transitives.");
             }
 
             // Register the filter if one was configured
             spec.getTransitiveFilter().ifPresent(filter -> registry.registerFilter(dep, filter));
 
-            if (postAddCallback != null) {
-                postAddCallback.accept(dep);
-            }
+            postAddCallback.ifPresent(callback -> callback.accept(dep));
         }
 
         return dep;
     }
-
 }

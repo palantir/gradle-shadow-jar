@@ -27,13 +27,7 @@ import org.gradle.api.artifacts.ResolvedDependency;
  * }
  * </pre>
  */
-public final class DependencyInfo {
-    private final ResolvedDependency resolvedDependency;
-
-    public DependencyInfo(ResolvedDependency resolvedDependency) {
-        this.resolvedDependency = resolvedDependency;
-    }
-
+record DependencyInfo(ResolvedDependency resolvedDependency) {
     /**
      * Returns the group of the dependency (e.g., "com.google.guava").
      */
@@ -53,12 +47,5 @@ public final class DependencyInfo {
      */
     public String getVersion() {
         return resolvedDependency.getModuleVersion();
-    }
-
-    /**
-     * Returns the underlying ResolvedDependency for advanced use cases.
-     */
-    public ResolvedDependency getResolvedDependency() {
-        return resolvedDependency;
     }
 }

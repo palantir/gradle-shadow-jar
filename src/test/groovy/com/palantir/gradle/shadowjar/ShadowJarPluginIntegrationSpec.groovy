@@ -1167,6 +1167,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 'org.example:example-lib:3.0.0'
         )
 
+        //language=gradle
         buildFile << """
             repositories {
                 maven { url "file:///${mavenRepo.getAbsolutePath()}" }

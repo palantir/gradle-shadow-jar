@@ -27,7 +27,7 @@ import org.gradle.api.artifacts.ResolvedDependency;
  * Registry that tracks which shadeJust dependencies have transitiveFilters configured.
  * This allows the shadowing logic to determine which transitive dependencies should be shaded.
  */
-public final class ShadeJustRegistry {
+public final class ShadeRegistry {
     private final Map<String, Predicate<ResolvedDependency>> filters = new ConcurrentHashMap<>();
 
     /**
@@ -46,34 +46,14 @@ public final class ShadeJustRegistry {
      *
      * @param directDependency the direct shadeJust dependency
      * @param transitiveDependency the transitive dependency to check
-     * @return true if the transitive should be shaded according to the filter
+     * @return true if the transitive should be shaded according to the filter, false otherwise
      */
     public boolean shouldShadeTransitive(
             ResolvedDependency directDependency, ResolvedDependency transitiveDependency) {
-        return getFilter(directDependency)
+        String key = makeKey(directDependency.getModuleGroup(), directDependency.getModuleName());
+        return Optional.ofNullable(filters.get(key))
                 .map(filter -> filter.test(transitiveDependency))
                 .orElse(false);
-    }
-
-    /**
-     * Gets the filter configured for a specific dependency.
-     *
-     * @param dependency the dependency to look up
-     * @return Optional containing the filter if one was configured, empty otherwise
-     */
-    public Optional<Predicate<ResolvedDependency>> getFilter(ResolvedDependency dependency) {
-        String key = makeKey(dependency.getModuleGroup(), dependency.getModuleName());
-        return Optional.ofNullable(filters.get(key));
-    }
-
-    /**
-     * Checks if a dependency has a filter registered.
-     *
-     * @param dependency the dependency to check
-     * @return true if a filter is registered for this dependency
-     */
-    public boolean hasFilter(ResolvedDependency dependency) {
-        return getFilter(dependency).isPresent();
     }
 
     private static String makeKey(String group, String name) {
