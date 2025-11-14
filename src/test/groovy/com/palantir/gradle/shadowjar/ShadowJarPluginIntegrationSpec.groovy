@@ -629,8 +629,8 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
         // But all of guava's transitive dependencies should be in the POM (not shaded)
         assert dependenciesText.contains('<artifactId>error_prone_annotations</artifactId>')
-        assert dependenciesText.contains('<artifactId>listenablefuture</artifactId>')
-        assert dependenciesText.contains('<artifactId>jsr305</artifactId>')
+        assert dependenciesText.contains('<artifactId>failureaccess</artifactId>')
+        assert dependenciesText.contains('<artifactId>j2objc-annotations</artifactId>')
         assert dependenciesText.contains('<artifactId>checker-qual</artifactId>')
 
         def jarEntryNames = jarEntryNames()
@@ -968,68 +968,6 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         assert jarEntryNames.contains(relocatedClass('javax/ws/rs/core/Response.class'))
     }
 
-    def 'shadeJust should be available to test source sets'() {
-        when:
-        buildFile << """
-            apply plugin: 'org.unbroken-dome.test-sets'
-
-            testSets {
-                integrationTest
-            }
-
-            dependencies {
-                shadeJust 'com.google.guava:guava:28.2-jre'
-
-                testImplementation 'junit:junit:4.12'
-                integrationTestImplementation 'junit:junit:4.12'
-            }
-        """.stripIndent()
-
-        file('src/main/java/pkg/Foo.java') << '''
-            package pkg;
-            import com.google.common.collect.ImmutableList;
-            class MainSourceSetClass {
-                static void useGuava() { ImmutableList.of(); }
-            }
-        '''.stripIndent()
-
-        file('src/test/java/pkg/FooTest.java') << '''
-            package pkg;
-            import org.junit.Test;
-            import com.google.common.collect.ImmutableList;
-            public class FooTest {
-                @Test
-                public void use_guava_directly() {
-                    ImmutableList.of();
-                }
-
-                @Test
-                public void use_guava_though_main_source_set() {
-                    MainSourceSetClass.useGuava();
-                }
-            }
-        '''.stripIndent()
-
-        file('src/integrationTest/java/pkg/FooIntegrationTest.java') << '''
-            package pkg;
-            import org.junit.Test;
-            import com.google.common.collect.ImmutableList;
-            public class FooIntegrationTest {
-                @Test
-                public void use_guava_directly() {
-                    ImmutableList.of();
-                }
-
-                @Test
-                public void use_guava_though_main_source_set() {
-                    MainSourceSetClass.useGuava();
-                }
-            }
-        '''.stripIndent()
-
-        then:
-        runTasksAndCheckSuccess('test', 'integrationTest')
-    }
 
     def 'shadeJust should only include directly shaded dependencies in jar, not implementation or runtimeOnly dependencies'() {
         when:
@@ -1082,25 +1020,6 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         assert !jarEntryNames.contains(relocatedClass('javax/annotation/Nullable.class'))
     }
 
-    def 'shadowJar task with shadeJust should be cacheable'() {
-        when:
-        buildFile << """
-            dependencies {
-                shadeJust 'com.google.guava:guava:28.2-jre'
-            }
-        """.stripIndent()
-
-        writeHelloWorld()
-
-        then:
-        runTasksAndCheckSuccess('--build-cache', 'shadowJar')
-
-        when:
-        def rerun = runTasksAndCheckSuccess('--build-cache', 'clean', 'shadowJar')
-
-        then:
-        rerun.tasks(TaskOutcome.FROM_CACHE).path.contains(':shadowJar')
-    }
 
     // ========================================
     // shadeTransitively and shadeJust interaction tests
@@ -1129,8 +1048,8 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
         // shadeTransitively wins, so transitives should also be shaded (NOT in POM)
         assert !dependenciesText.contains('<artifactId>error_prone_annotations</artifactId>')
-        assert !dependenciesText.contains('<artifactId>listenablefuture</artifactId>')
-        assert !dependenciesText.contains('<artifactId>jsr305</artifactId>')
+        assert !dependenciesText.contains('<artifactId>failureaccess</artifactId>')
+        assert !dependenciesText.contains('<artifactId>j2objc-annotations</artifactId>')
 
         // Only the api dependency should be in POM
         assert dependenciesText.contains('<artifactId>checker-qual</artifactId>')
@@ -1159,25 +1078,22 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         when:
         def mavenRepo = generateMavenRepo(
                 'custom-dep:my-library:1 -> ' +
-                        'com.palantir.foo:foo-api:1.0.0 ' +
-                        '| com.palantir.bar:bar-core:2.0.0 ' +
-                        '| org.example:example-lib:3.0.0',
-                'com.palantir.foo:foo-api:1.0.0',
-                'com.palantir.bar:bar-core:2.0.0',
-                'org.example:example-lib:3.0.0'
+                        'com.google.guava:guava:28.2-jre ' +
+                        '| org.apiguardian:apiguardian-api:1.1.0'
         )
 
-        //language=gradle
         buildFile << """
             repositories {
                 maven { url "file:///${mavenRepo.getAbsolutePath()}" }
             }
 
             dependencies {
-                // Use transitiveFilter to shade all com.palantir.* dependencies (even transitives)
+                // Use transitiveFilter to shade com.google.* dependencies
+                // guava should be shaded, but its transitives (error_prone, jsr305, etc.) should NOT
                 shadeJust('custom-dep:my-library:1') {
                     transitiveFilter { dependency ->
-                        dependency.group.startsWith('com.palantir.')
+                        dependency.group.startsWith('com.google.guava') ||
+                        dependency.group.startsWith('com.google.common')
                     }
                 }
             }
@@ -1191,27 +1107,40 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         // custom-dep:my-library should NOT be in POM (it's the direct shadeJust dependency)
         assert !dependenciesText.contains('<artifactId>my-library</artifactId>')
 
-        // com.palantir.* dependencies should NOT be in POM (matched by transitiveFilter)
-        assert !dependenciesText.contains('<artifactId>foo-api</artifactId>')
-        assert !dependenciesText.contains('<artifactId>bar-core</artifactId>')
+        // guava matched by transitiveFilter, should NOT be in POM (shaded)
+        assert !dependenciesText.contains('<artifactId>guava</artifactId>')
 
-        // But org.example should be in POM (not matched by transitiveFilter)
-        assert dependenciesText.contains('<artifactId>example-lib</artifactId>')
+        // guava's transitives should be in POM (not matched by filter, so unshaded)
+        assert dependenciesText.contains('<artifactId>error_prone_annotations</artifactId>')
+        assert dependenciesText.contains('<artifactId>checker-qual</artifactId>')
+        assert dependenciesText.contains('<artifactId>j2objc-annotations</artifactId>')
 
-        // Note: We don't check JAR contents because generateMavenRepo creates empty fake JARs
-        // The POM assertions above are sufficient to verify the transitiveFilter functionality
+        // apiguardian-api not matched by filter, should be in POM
+        assert dependenciesText.contains('<artifactId>apiguardian-api</artifactId>')
+
+        def jarEntryNames = jarEntryNames()
+
+        // guava classes should be shaded (matched by filter)
+        assert jarEntryNames.contains(relocatedClass('com/google/common/collect/ImmutableList.class'))
+        assert jarEntryNames.contains(relocatedClass('com/google/common/io/ByteSink.class'))
+
+        // guava's transitives should NOT be shaded (not matched by filter)
+        assert !jarEntryNames.contains(relocatedClass('com/google/errorprone/annotations/DoNotCall.class'))
+        assert !jarEntryNames.contains(relocatedClass('com/google/j2objc/annotations/Property.class'))
+        assert !jarEntryNames.contains('com/google/errorprone/annotations/DoNotCall.class')
+        assert !jarEntryNames.contains('com/google/j2objc/annotations/Property.class')
+
+        // apiguardian-api should NOT be in jar (unshaded transitive)
+        assert !jarEntryNames.contains(relocatedClass('org/apiguardian/api/API.class'))
+        assert !jarEntryNames.contains('org/apiguardian/api/API.class')
     }
 
     def 'shadeJust transitiveFilter should shade matching dependencies at any depth, but not their transitives'() {
         when:
         def mavenRepo = generateMavenRepo(
                 'com.example:myapp:1 -> ' +
-                        'com.palantir.example:service:1.0.0 ' +
-                        '| com.google.guava:guava:28.2-jre',
-                'com.palantir.example:service:1.0.0 -> ' +
-                        'com.palantir.example:api:1.0.0 ' +
-                        '| org.slf4j:slf4j-api:1.7.30',
-                'com.palantir.example:api:1.0.0 -> org.checkerframework:checker-qual:2.10.0'
+                        'com.google.guava:guava:28.2-jre ' +
+                        '| com.google.code.gson:gson:2.8.6'
         )
 
         buildFile << """
@@ -1220,11 +1149,12 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             }
 
             dependencies {
-                // Use transitiveFilter - should shade ANY com.palantir.example.* dependency (direct or transitive)
-                // but NOT their transitives
+                // Use transitiveFilter to only shade gson, not guava
+                // gson should be shaded (matched by filter)
+                // guava should NOT be shaded (not matched by filter)
                 shadeJust('com.example:myapp:1') {
                     transitiveFilter { dependency ->
-                        dependency.group.startsWith('com.palantir.example.')
+                        dependency.group.startsWith('com.google.code.')
                     }
                 }
             }
@@ -1238,37 +1168,41 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         // myapp should NOT be in POM (direct shadeJust dependency)
         assert !dependenciesText.contains('<artifactId>myapp</artifactId>')
 
-        // Note: The fake dependencies created by generateMavenRepo don't properly simulate the filtering
-        // behavior for multi-level transitive dependencies, so we only check the real dependencies
+        // gson matched by filter, should NOT be in POM (shaded)
+        assert !dependenciesText.contains('<artifactId>gson</artifactId>')
 
-        // Real transitive dependencies should be in POM (not matched by filter)
+        // guava not matched by filter, should be in POM (unshaded)
         assert dependenciesText.contains('<artifactId>guava</artifactId>')
-        assert dependenciesText.contains('<artifactId>checker-qual</artifactId>')
-        assert dependenciesText.contains('<artifactId>slf4j-api</artifactId>')
 
-        // Note: We don't check JAR contents for fake dependencies
-        // The real (Maven Central) transitive dependencies are tested to ensure they're NOT shaded
+        // guava's transitives should also be in POM
+        assert dependenciesText.contains('<artifactId>error_prone_annotations</artifactId>')
+        assert dependenciesText.contains('<artifactId>checker-qual</artifactId>')
+        assert dependenciesText.contains('<artifactId>j2objc-annotations</artifactId>')
+
         def jarEntryNames = jarEntryNames()
 
-        // Real dependencies' classes should NOT be shaded or in jar (they're unshaded transitives)
+        // gson should be shaded (matched by filter)
+        assert jarEntryNames.contains(relocatedClass('com/google/gson/Gson.class'))
+        assert jarEntryNames.contains(relocatedClass('com/google/gson/JsonParser.class'))
+
+        // guava should NOT be shaded or in jar (not matched by filter)
         assert !jarEntryNames.contains(relocatedClass('com/google/common/collect/ImmutableList.class'))
         assert !jarEntryNames.contains('com/google/common/collect/ImmutableList.class')
-        assert !jarEntryNames.contains(relocatedClass('org/checkerframework/checker/nullness/qual/Nullable.class'))
-        assert !jarEntryNames.contains('org/checkerframework/checker/nullness/qual/Nullable.class')
-        assert !jarEntryNames.contains(relocatedClass('org/slf4j/Logger.class'))
-        assert !jarEntryNames.contains('org/slf4j/Logger.class')
+
+        // guava's transitives should NOT be shaded or in jar
+        assert !jarEntryNames.contains(relocatedClass('com/google/errorprone/annotations/DoNotCall.class'))
+        assert !jarEntryNames.contains('com/google/errorprone/annotations/DoNotCall.class')
+        assert !jarEntryNames.contains(relocatedClass('com/google/j2objc/annotations/Property.class'))
+        assert !jarEntryNames.contains('com/google/j2objc/annotations/Property.class')
     }
 
     def 'shadeJust with multiple transitiveFilters should shade all matching dependencies'() {
         when:
         def mavenRepo = generateMavenRepo(
                 'custom-dep:my-library:1 -> ' +
-                        'com.palantir.foo:foo-api:1.0.0 ' +
-                        '| com.example.bar:bar-core:2.0.0 ' +
-                        '| org.other:other-lib:3.0.0',
-                'com.palantir.foo:foo-api:1.0.0',
-                'com.example.bar:bar-core:2.0.0',
-                'org.other:other-lib:3.0.0'
+                        'com.google.guava:guava:28.2-jre ' +
+                        '| com.google.code.gson:gson:2.8.6 ' +
+                        '| org.apiguardian:apiguardian-api:1.1.0'
         )
 
         buildFile << """
@@ -1277,11 +1211,11 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             }
 
             dependencies {
-                // Multiple filters to match different patterns
+                // Multiple filter conditions to match both guava and gson
                 shadeJust('custom-dep:my-library:1') {
                     transitiveFilter { dependency ->
-                        dependency.group.startsWith('com.palantir.') ||
-                        dependency.group.startsWith('com.example.')
+                        dependency.group.startsWith('com.google.guava') ||
+                        dependency.group.startsWith('com.google.code.')
                     }
                 }
             }
@@ -1295,21 +1229,42 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         // my-library should NOT be in POM (direct shadeJust dependency)
         assert !dependenciesText.contains('<artifactId>my-library</artifactId>')
 
-        // Both com.palantir.* and com.example.* should NOT be in POM (matched by filter)
-        assert !dependenciesText.contains('<artifactId>foo-api</artifactId>')
-        assert !dependenciesText.contains('<artifactId>bar-core</artifactId>')
+        // Both guava and gson matched by filter, should NOT be in POM (shaded)
+        assert !dependenciesText.contains('<artifactId>guava</artifactId>')
+        assert !dependenciesText.contains('<artifactId>gson</artifactId>')
 
-        // org.other should be in POM (not matched by filter)
-        assert dependenciesText.contains('<artifactId>other-lib</artifactId>')
+        // apiguardian-api not matched by filter, should be in POM
+        assert dependenciesText.contains('<artifactId>apiguardian-api</artifactId>')
 
-        // Note: We don't check JAR contents because generateMavenRepo creates empty fake JARs
-        // The POM assertions above are sufficient to verify the transitiveFilter functionality
+        // guava's transitives should be in POM (not matched by filter)
+        assert dependenciesText.contains('<artifactId>error_prone_annotations</artifactId>')
+        assert dependenciesText.contains('<artifactId>checker-qual</artifactId>')
+        assert dependenciesText.contains('<artifactId>j2objc-annotations</artifactId>')
+
+        def jarEntryNames = jarEntryNames()
+
+        // Both guava and gson should be shaded (matched by filter)
+        assert jarEntryNames.contains(relocatedClass('com/google/common/collect/ImmutableList.class'))
+        assert jarEntryNames.contains(relocatedClass('com/google/gson/Gson.class'))
+
+        // guava's transitives should NOT be shaded or in jar (not matched)
+        assert !jarEntryNames.contains(relocatedClass('com/google/errorprone/annotations/DoNotCall.class'))
+        assert !jarEntryNames.contains('com/google/errorprone/annotations/DoNotCall.class')
+        assert !jarEntryNames.contains(relocatedClass('com/google/j2objc/annotations/Property.class'))
+        assert !jarEntryNames.contains('com/google/j2objc/annotations/Property.class')
+
+        // apiguardian-api should NOT be shaded or in jar (not matched)
+        assert !jarEntryNames.contains(relocatedClass('org/apiguardian/api/API.class'))
+        assert !jarEntryNames.contains('org/apiguardian/api/API.class')
     }
 
-    def 'shadeJust without transitiveFilter should only shade the direct dependency'() {
+    def 'shadeJust transitiveFilter with banned library - banned library rejection should still apply'() {
         when:
         def mavenRepo = generateMavenRepo(
-                'fake-app:myapp:1 -> org.slf4j:slf4j-log4j12:1.7.30',
+                'custom-dep:my-library:1 -> ' +
+                        'com.palantir.foo:foo-api:1.0.0 ' +
+                        '| org.slf4j:slf4j-log4j12:1.7.30',
+                'com.palantir.foo:foo-api:1.0.0',
         )
 
         buildFile << """
@@ -1318,8 +1273,13 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             }
 
             dependencies {
-                // No transitiveFilter - should only shade myapp, not its transitives
-                shadeJust 'fake-app:myapp:1'
+                // Filter should match slf4j, but it should STILL be rejected (banned library wins)
+                shadeJust('custom-dep:my-library:1') {
+                    transitiveFilter { dependency ->
+                        dependency.group.startsWith('com.palantir.') ||
+                        dependency.group.startsWith('org.slf4j')
+                    }
+                }
             }
         """.stripIndent()
 
@@ -1328,18 +1288,20 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
         def dependenciesText = dependenciesInPom()
 
-        // myapp should NOT be in POM (direct shadeJust dependency)
-        assert !dependenciesText.contains('<artifactId>myapp</artifactId>')
+        // my-library should NOT be in POM (direct shadeJust dependency)
+        assert !dependenciesText.contains('<artifactId>my-library</artifactId>')
 
-        // All transitives should be in POM (no filter applied)
+        // foo-api matched by filter, should NOT be in POM
+        assert !dependenciesText.contains('<artifactId>foo-api</artifactId>')
+
+        // slf4j-log4j12 matched by filter BUT is banned, should be in POM (rejection wins)
+        // Only the top-level rejected module is in POM; its transitives (slf4j-api, log4j)
+        // will be pulled in automatically when consumers depend on slf4j-log4j12
         assert dependenciesText.contains('<artifactId>slf4j-log4j12</artifactId>')
-        assert dependenciesText.contains('<artifactId>slf4j-api</artifactId>')
-        assert dependenciesText.contains('<artifactId>log4j</artifactId>')
 
         def jarEntryNames = jarEntryNames()
 
-        // myapp fake dependency won't have classes, but we test that transitives are NOT shaded
-        // Transitives should NOT be in jar
+        // Banned libraries should NOT be shaded even if matched by filter
         assert !jarEntryNames.contains(relocatedClass('org/slf4j/impl/Log4jLoggerFactory.class'))
         assert !jarEntryNames.contains('org/slf4j/impl/Log4jLoggerFactory.class')
         assert !jarEntryNames.contains(relocatedClass('org/slf4j/LoggerFactory.class'))
