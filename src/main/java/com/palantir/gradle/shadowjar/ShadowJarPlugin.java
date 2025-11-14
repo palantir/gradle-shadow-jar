@@ -22,11 +22,8 @@ import com.github.jengelman.gradle.plugins.shadow.internal.DefaultDependencyFilt
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -134,6 +131,10 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     conf.setVisible(false);
                 });
 
+        // Single configuration for ALL unshaded dependencies that should appear in the POM
+        // This includes:
+        // 1. Banned libraries (slf4j, etc.) that were rejected from shading
+        // 2. Transitives from shadeJust that don't match the filter (unshaded)
         NamedDomainObjectProvider<Configuration> rejectedFromShading = project.getConfigurations()
                 .register("rejectedFromShading", conf -> {
                     conf.setCanBeConsumed(false);
@@ -177,10 +178,11 @@ public class ShadowJarPlugin implements Plugin<Project> {
                         .map(project.getConfigurations()::getByName)
                         .forEach(classpathConf -> {
                             unshadedConf.extendsFrom(classpathConf.getExtendsFrom().stream()
-                                    .filter(extendsFromConf -> extendsFromConf != shadeTransitively.get())
-                                    // Note: We DO NOT filter out shadeJust here because we want its
-                                    // transitive dependencies to remain unshaded and appear in the POM
-                                    // Direct shadeJust dependencies are removed via POM XML manipulation
+                                    .filter(extendsFromConf -> extendsFromConf != shadeTransitively.get()
+                                            && extendsFromConf != shadeJust.get()
+                                            && extendsFromConf != rejectedFromShading.get())
+                                    // Filter out shading configs so they don't appear in unshaded
+                                    // rejectedFromShading is added via runtimeElements directly
                                     .toArray(Configuration[]::new));
                         });
             });
@@ -195,172 +197,13 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     conf.extendsFrom(shadeJust.get()); // For compilation/runtime access
                 })));
 
-        // Manipulate POM to remove direct shadeJust dependencies and add their transitives
-        // This happens at task execution time (during POM generation), so it works with --write-locks
-        project.getPlugins().withType(org.gradle.api.publish.plugins.PublishingPlugin.class, _plugin -> {
-            project.getExtensions().configure(org.gradle.api.publish.PublishingExtension.class, publishing -> {
-                publishing
-                        .getPublications()
-                        .withType(org.gradle.api.publish.maven.MavenPublication.class, publication -> {
-                            publication.pom(pom -> {
-                                pom.withXml(xml -> {
-                                    // Resolve both configurations at POM generation time (task execution time)
-                                    Set<String> directDepsToRemove = new java.util.HashSet<>();
-                                    List<Map<String, String>> transitivesToAdd = new ArrayList<>();
-
-                                    try {
-                                        // Get direct dependencies from both configurations
-                                        Set<ResolvedDependency> shadeJustDirectDeps = project.getConfigurations()
-                                                .getByName("shadeJustInternal")
-                                                .getResolvedConfiguration()
-                                                .getFirstLevelModuleDependencies();
-
-                                        Set<ResolvedDependency> shadeTransitivelyDirectDeps =
-                                                project.getConfigurations()
-                                                        .getByName("shadeTransitively")
-                                                        .getResolvedConfiguration()
-                                                        .getFirstLevelModuleDependencies();
-
-                                        shadeJustDirectDeps.forEach(directDep -> {
-                                            String depKey =
-                                                    directDep.getModuleGroup() + ":" + directDep.getModuleName();
-
-                                            // Check if this dependency is also in shadeTransitively
-                                            boolean isAlsoInShadeTransitively = shadeTransitivelyDirectDeps.stream()
-                                                    .anyMatch(stdDep -> (stdDep.getModuleGroup() + ":"
-                                                                    + stdDep.getModuleName())
-                                                            .equals(depKey));
-
-                                            if (isAlsoInShadeTransitively) {
-                                                // If in both, shadeTransitively wins - don't modify POM
-                                                // (shadeTransitively already removes everything)
-                                                // Skip this dependency entirely
-                                            } else {
-                                                // Only in shadeJust - track for removal and add transitives
-                                                directDepsToRemove.add(depKey);
-
-                                                // Get ALL transitive dependencies (recursively, excluding the direct
-                                                // dep itself)
-                                                Set<ResolvedDependency> allTransitives = allChildren(Set.of(directDep));
-
-                                                // Add transitives (excluding other direct shadeJust deps and filtered
-                                                // transitives)
-                                                allTransitives.forEach(transitive -> {
-                                                    // Skip if it's another direct shadeJust dependency
-                                                    if (shadeJustDirectDeps.contains(transitive)) {
-                                                        return;
-                                                    }
-
-                                                    // Skip if this transitive matches the transitiveFilter (should be
-                                                    // shaded)
-                                                    if (registry.shouldShadeTransitive(directDep, transitive)) {
-                                                        return;
-                                                    }
-
-                                                    // Add to POM (it's unshaded)
-                                                    Map<String, String> dep = new HashMap<>();
-                                                    dep.put("groupId", transitive.getModuleGroup());
-                                                    dep.put("artifactId", transitive.getModuleName());
-                                                    dep.put("version", transitive.getModuleVersion());
-                                                    transitivesToAdd.add(dep);
-                                                });
-                                            }
-                                        });
-                                    } catch (Exception e) {
-                                        // If configurations don't exist or have no dependencies, skip
-                                        return;
-                                    }
-
-                                    if (directDepsToRemove.isEmpty()) {
-                                        return;
-                                    }
-
-                                    // Find the <dependencies> node
-                                    groovy.util.Node projectNode = xml.asNode();
-                                    groovy.util.Node dependenciesNode = null;
-
-                                    @SuppressWarnings("unchecked")
-                                    List<Object> children = (List<Object>) projectNode.children();
-                                    for (Object child : children) {
-                                        if (child instanceof groovy.util.Node node) {
-                                            Object nodeName = node.name();
-                                            String nameStr = nodeName instanceof groovy.namespace.QName qname
-                                                    ? qname.getLocalPart()
-                                                    : nodeName.toString();
-                                            if ("dependencies".equals(nameStr)) {
-                                                dependenciesNode = node;
-                                                break;
-                                            }
-                                        }
-                                    }
-
-                                    // Remove direct shadeJust dependencies from POM
-                                    // Also remove transitives if the dependency is in both configs
-                                    if (dependenciesNode != null) {
-                                        @SuppressWarnings("unchecked")
-                                        List<Object> depChildren =
-                                                new ArrayList<>((List<Object>) dependenciesNode.children());
-                                        for (Object depChild : depChildren) {
-                                            if (depChild instanceof groovy.util.Node depNode) {
-                                                String groupId = null;
-                                                String artifactId = null;
-
-                                                @SuppressWarnings("unchecked")
-                                                List<Object> depNodeChildren = (List<Object>) depNode.children();
-                                                for (Object field : depNodeChildren) {
-                                                    if (field instanceof groovy.util.Node fieldNode) {
-                                                        Object fieldName = fieldNode.name();
-                                                        String fieldNameStr =
-                                                                fieldName instanceof groovy.namespace.QName qname
-                                                                        ? qname.getLocalPart()
-                                                                        : fieldName.toString();
-
-                                                        if ("groupId".equals(fieldNameStr)) {
-                                                            groupId = fieldNode.text();
-                                                        } else if ("artifactId".equals(fieldNameStr)) {
-                                                            artifactId = fieldNode.text();
-                                                        }
-                                                    }
-                                                }
-
-                                                if (groupId != null && artifactId != null) {
-                                                    String depKey = groupId + ":" + artifactId;
-                                                    // Remove if it's a direct shadeJust dep (that's only in shadeJust)
-                                                    if (directDepsToRemove.contains(depKey)) {
-                                                        dependenciesNode.remove(depNode);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    // Create dependencies node if needed
-                                    if (dependenciesNode == null && !transitivesToAdd.isEmpty()) {
-                                        dependenciesNode = projectNode.appendNode("dependencies");
-                                    }
-
-                                    // Add transitives
-                                    if (dependenciesNode != null) {
-                                        groovy.util.Node finalDependenciesNode = dependenciesNode;
-                                        transitivesToAdd.forEach(depMap -> {
-                                            groovy.util.Node dep = finalDependenciesNode.appendNode("dependency");
-                                            dep.appendNode("groupId", depMap.get("groupId"));
-                                            dep.appendNode("artifactId", depMap.get("artifactId"));
-                                            dep.appendNode("version", depMap.get("version"));
-                                            dep.appendNode("scope", "runtime");
-                                        });
-                                    }
-                                });
-                            });
-                        });
-            });
-        });
-
         Provider<ShadowingCalculation> shadowingCalculation = shadeTransitively
-                .zip(shadeJust, ConfigurationPair::new)
-                .zip(unshaded, (configPair, unshadedConf) -> {
-                    Configuration shadeTransitivelyConf = configPair.shadeTransitively;
-                    Configuration shadeJustConf = configPair.shadeJust;
+                .zip(shadeJust, (shadeTransitivelyConf, shadeJustConf) -> {
+                    return new Configuration[] {shadeTransitivelyConf, shadeJustConf};
+                })
+                .zip(unshaded, (configs, unshadedConf) -> {
+                    Configuration shadeTransitivelyConf = configs[0];
+                    Configuration shadeJustConf = configs[1];
 
                     // Get all resolved dependencies from both configurations
                     Set<ResolvedDependency> shadeTransitivelyModules = shadeTransitivelyConf
@@ -383,9 +226,6 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
                     // Get dependencies that are explicitly declared (api, implementation, etc.)
                     // These should NEVER be shaded, even if they're also transitives of shaded deps
-                    // unshadedModules contains: api + implementation + runtimeOnly + shadeJust (+ their transitives)
-                    // We want: api + implementation + runtimeOnly (NOT shadeJust)
-                    // So we subtract everything from shadeJust (direct + transitives)
                     Set<ResolvedDependency> explicitlyDeclaredUnshadedModules =
                             Sets.difference(unshadedModules, shadeJustAllModules);
 
@@ -395,8 +235,6 @@ public class ShadowJarPlugin implements Plugin<Project> {
                             Sets.difference(shadeTransitivelyModules, explicitlyDeclaredUnshadedModules);
 
                     // Step 2: shadeJust - only shade direct deps + filtered transitives
-                    // Note: We don't subtract unshadedModules here because shadeJust dependencies
-                    // are intentionally in unshaded (their transitives need to be in the POM)
                     Set<ResolvedDependency> fromShadeJust = shadeJustAllModules.stream()
                             .filter(candidate -> {
                                 // If it's a direct shadeJust dependency, always shade it
@@ -433,22 +271,41 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     Set<ResolvedDependency> acceptedModules =
                             Sets.difference(allShadedModules, transitivelyRejectedModules);
 
+                    // Compute unshaded transitives from shadeJust
+                    // These are transitives that don't match the filter and weren't rejected
+                    Set<ResolvedDependency> unshadedShadeJustTransitives = shadeJustAllModules.stream()
+                            .filter(module -> !shadeJustDirectModules.contains(module)) // Not direct
+                            .filter(module -> !acceptedModules.contains(module)) // Not shaded
+                            .filter(module -> !highestLevelRejectedModulesThatArentDirectlyListed.contains(module)) // Not rejected
+                            .collect(Collectors.toSet());
+
                     return ImmutableShadowingCalculation.builder()
                             .acceptedShadedModules(acceptedModules)
                             .rejectedShadedModules(highestLevelRejectedModulesThatArentDirectlyListed)
+                            .unshadedShadeJustTransitives(unshadedShadeJustTransitives)
                             .build();
                 });
 
-        rejectedFromShading.configure(conf -> conf.getDependencies()
-                .addAllLater(project.getObjects()
-                        .setProperty(Dependency.class)
-                        .value(shadowingCalculation.map(calc -> calc.rejectedShadedModules().stream()
-                                .map(this::depToString)
-                                .map(project.getDependencies()::create)
-                                .collect(Collectors.toSet())))));
+        // Populate rejectedFromShading with everything that should be in the POM
+        // ShadowingCalculation already computed this for us
+        rejectedFromShading.configure(conf -> conf.getDependencies().addAllLater(shadowingCalculation.map(calc -> {
+            Set<Dependency> pomDeps = new java.util.HashSet<>();
+
+            // Add rejected modules (banned libraries)
+            calc.rejectedShadedModules().forEach(module -> {
+                pomDeps.add(project.getDependencies().create(depToString(module)));
+            });
+
+            // Add unshaded transitives from shadeJust
+            calc.unshadedShadeJustTransitives().forEach(module -> {
+                pomDeps.add(project.getDependencies().create(depToString(module)));
+            });
+
+            return pomDeps;
+        })));
 
         shadowJarProvider.configure(shadowJar -> {
-            shadowJar.getConfigurations().set(shadeTransitively.zip(shadeJust, (st, sj) -> List.of(st, sj)));
+            shadowJar.getConfigurations().set(shadeTransitively.zip(shadeJust, List::of));
 
             shadowJar.getDependencyFilter().set(shadowingCalculation.map(calc -> {
                 DefaultDependencyFilter filter = new DefaultDependencyFilter(project);
@@ -499,13 +356,16 @@ public class ShadowJarPlugin implements Plugin<Project> {
         return selfAndAllChildren(Set.of(potentialParent)).contains(candidate);
     }
 
-    private record ConfigurationPair(Configuration shadeTransitively, Configuration shadeJust) {}
-
     @Value.Immutable
     interface ShadowingCalculation {
+        /** Modules that will be shaded into the shadow jar */
         Set<ResolvedDependency> acceptedShadedModules();
 
+        /** Banned libraries that were rejected from shading and should appear in the POM */
         Set<ResolvedDependency> rejectedShadedModules();
+
+        /** Unshaded transitives from shadeJust that should appear in the POM */
+        Set<ResolvedDependency> unshadedShadeJustTransitives();
     }
 
     private String depToString(ResolvedDependency resolvedDependency) {
