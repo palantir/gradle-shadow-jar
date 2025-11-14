@@ -106,22 +106,16 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
     private void setupShadowJarToShadeTheCorrectDependencies(
             Project project, TaskProvider<ShadowJar> shadowJarProvider) {
-        // Create registry for tracking shadeJust transitiveFilters
         ShadeRegistry registry = new ShadeRegistry();
         project.getExtensions().add("shadeRegistry", registry);
 
-        // Combined configuration for all shaded dependencies
         NamedDomainObjectProvider<Configuration> shaded = project.getConfigurations()
                 .register("shaded", conf -> {
                     conf.setCanBeConsumed(false);
                     conf.setVisible(false);
                 });
 
-        // Register the shadeJust extension with the dependencies block
         ShadeExtension.registerWith(project, registry, "shadeJust", "shaded");
-
-        // Register shadeTransitively - it uses the same configuration but with a match-all filter
-        // Custom filters are not allowed for shadeTransitively
         ShadeExtension.registerWith(
                 project,
                 registry,
@@ -136,10 +130,6 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     conf.setVisible(false);
                 });
 
-        // Single configuration for ALL unshaded dependencies that should appear in the POM
-        // This includes:
-        // 1. Banned libraries (slf4j, etc.) that were rejected from shading
-        // 2. Transitives from shadeJust that don't match the filter (unshaded)
         NamedDomainObjectProvider<Configuration> rejectedFromShading = project.getConfigurations()
                 .register("rejectedFromShading", conf -> {
                     conf.setCanBeConsumed(false);
@@ -215,33 +205,21 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     .getAllModuleDependencies();
 
             // Filter shaded modules based on:
-            // 1. Direct dependencies are always shaded
-            // 2. Transitives are shaded if they match the filter (or if no filter = shade all)
-            // 3. Modules that appear in unshaded are NEVER shaded
+            // 1. Modules that appear in unshaded are NEVER shaded
+            // 2. Direct dependencies are always shaded
+            // 3. Transitives are shaded if they match the filter
             Set<ResolvedDependency> allShadedModules = shadedAllModules.stream()
-                    .filter(candidate -> {
-                        // Never shade modules that appear in unshaded (api/implementation/etc)
-                        if (unshadedModules.contains(candidate)) {
-                            return false;
-                        }
-
-                        // If it's a direct-shaded dependency, always shade it
-                        if (shadedDirectModules.contains(candidate)) {
-                            return true;
-                        }
-
-                        // Check if any parent shaded dependency has a filter that matches
-                        return shadedDirectModules.stream()
-                                .filter(directDep -> isTransitiveOf(candidate, directDep))
-                                .anyMatch(directDep -> registry.shouldShadeTransitive(directDep, candidate));
-                    })
+                    .filter(module -> !unshadedModules.contains(module))
+                    .filter(module -> shadedDirectModules.contains(module)
+                            || shadedDirectModules.stream()
+                                    .filter(directDep -> isTransitiveOf(module, directDep))
+                                    .anyMatch(directDep -> registry.shouldShadeTransitive(directDep, module)))
                     .collect(Collectors.toSet());
 
             // Apply banned library filtering across ALL modules in shaded config, not just candidates
             // This ensures banned libraries in transitives are properly rejected even when using shadeJust
-            Set<ResolvedDependency> directlyRejectedModules = shadedAllModules.stream()
-                    .filter(ShadowJarPlugin::isBanned)
-                    .collect(Collectors.toSet());
+            Set<ResolvedDependency> directlyRejectedModules =
+                    shadedAllModules.stream().filter(ShadowJarPlugin::isBanned).collect(Collectors.toSet());
 
             Set<ResolvedDependency> highestLevelRejectedModules =
                     Sets.difference(directlyRejectedModules, allChildren(directlyRejectedModules));
@@ -255,39 +233,32 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
             Set<ResolvedDependency> acceptedModules = Sets.difference(allShadedModules, transitivelyRejectedModules);
 
-            // Compute unshaded transitives from shaded deps
-            // These are transitives that don't match the filter and weren't rejected
+            // Compute unshaded transitives: transitives that didn't get shaded (didn't match filter or were rejected)
+            // Exclude modules already in api/implementation to avoid duplicates in POM
             Set<ResolvedDependency> unshadedShadedTransitives = shadedAllModules.stream()
+                    .filter(module -> !unshadedModules.contains(module)) // Don't add if already in api/implementation
                     .filter(module -> !shadedDirectModules.contains(module)) // Not direct
-                    .filter(module -> !acceptedModules.contains(module)) // Not shaded
-                    .filter(module ->
-                            !transitivelyRejectedModules.contains(module)) // Not rejected (including transitives)
+                    .filter(module -> !acceptedModules.contains(module)) // Wasn't accepted for shading
+                    .filter(module -> !transitivelyRejectedModules.contains(module)) // Not a banned library
                     .collect(Collectors.toSet());
+
+            // Combine rejected and unshaded modules - both go in the POM
+            Set<ResolvedDependency> pomDependencies =
+                    Sets.union(highestLevelRejectedModulesThatArentDirectlyListed, unshadedShadedTransitives);
 
             return ImmutableShadowingCalculation.builder()
                     .acceptedShadedModules(acceptedModules)
-                    .rejectedShadedModules(highestLevelRejectedModulesThatArentDirectlyListed)
-                    .unshadedShadedTransitives(unshadedShadedTransitives)
+                    .pomDependencies(pomDependencies)
                     .build();
         });
 
-        // Populate rejectedFromShading with everything that should be in the POM
-        // ShadowingCalculation already computed this for us
-        rejectedFromShading.configure(conf -> conf.getDependencies().addAllLater(shadowingCalculation.map(calc -> {
-            Set<Dependency> pomDeps = new java.util.HashSet<>();
-
-            // Add rejected modules (banned libraries)
-            calc.rejectedShadedModules().forEach(module -> {
-                pomDeps.add(project.getDependencies().create(depToString(module)));
-            });
-
-            // Add unshaded transitives from shaded deps
-            calc.unshadedShadedTransitives().forEach(module -> {
-                pomDeps.add(project.getDependencies().create(depToString(module)));
-            });
-
-            return pomDeps;
-        })));
+        rejectedFromShading.configure(conf -> conf.getDependencies()
+                .addAllLater(project.getObjects()
+                        .setProperty(Dependency.class)
+                        .value(shadowingCalculation.map(calc -> calc.pomDependencies().stream()
+                                .map(this::depToString)
+                                .map(project.getDependencies()::create)
+                                .collect(Collectors.toSet())))));
 
         shadowJarProvider.configure(shadowJar -> {
             shadowJar.getConfigurations().set(project.provider(() -> List.of(shaded.get())));
@@ -346,11 +317,8 @@ public class ShadowJarPlugin implements Plugin<Project> {
         /** Modules that will be shaded into the shadow jar */
         Set<ResolvedDependency> acceptedShadedModules();
 
-        /** Banned libraries that were rejected from shading and should appear in the POM */
-        Set<ResolvedDependency> rejectedShadedModules();
-
-        /** Unshaded transitives from shaded deps that should appear in the POM */
-        Set<ResolvedDependency> unshadedShadedTransitives();
+        /** Modules that should appear in the POM (rejected banned libraries + unshaded transitives) */
+        Set<ResolvedDependency> pomDependencies();
     }
 
     private String depToString(ResolvedDependency resolvedDependency) {
