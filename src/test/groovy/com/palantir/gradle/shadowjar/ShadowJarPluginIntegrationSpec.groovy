@@ -77,13 +77,17 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         """.stripIndent()
     }
 
+    // ========================================
+    // shadeTransitively configuration tests
+    // ========================================
+
     def 'when using shadeTransitively the produced pom only has dependencies that arent directly included and everything else is shaded'() {
         when:
         buildFile << """
-            apply plugin: 'java-library'            
+            apply plugin: 'java-library'
             dependencies {
                 api 'org.checkerframework:checker-qual:2.10.0'
-                
+
                 shadeTransitively 'com.google.guava:guava:28.2-jre'
             }
         """.stripIndent()
@@ -128,7 +132,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             repositories {
                 maven { url "file:///${mavenRepo.getAbsolutePath()}" }
             }
-            
+
             dependencies {
                 // depends on org.slf4j:slf4j-api and log4j:log4j
                 shadeTransitively 'dep-that-depends-on:slf4j-log4j12:1'
@@ -196,11 +200,11 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             repositories {
                 mavenCentral()
             }
-            
+
             dependencies {
                 shadeTransitively 'one.util:streamex:0.7.3'
             }
-            
+
             task extractForAssertions(type: Copy) {
                 dependsOn publishNebulaPublicationToTestRepoRepository
                 from zipTree("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
@@ -239,14 +243,14 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             repositories {
                 mavenCentral()
             }
-            
+
             dependencies {
                 // The service is not relocated, only the provider, which still must
                 // provide ws.rs-api 'jakarta.ws.rs.ext.RuntimeDelegate'
                 implementation 'jakarta.ws.rs:jakarta.ws.rs-api:3.1.0'
                 shadeTransitively 'org.glassfish.jersey.core:jersey-common:3.1.1'
             }
-            
+
             task extractForAssertions(type: Copy) {
                 dependsOn publishNebulaPublicationToTestRepoRepository
                 from zipTree("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
@@ -278,13 +282,13 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             repositories {
                 mavenCentral()
             }
-            
+
             dependencies {
                 // The service and provider are both relocated
                 shadeTransitively 'jakarta.ws.rs:jakarta.ws.rs-api:3.1.0'
                 shadeTransitively 'org.glassfish.jersey.core:jersey-common:3.1.1'
             }
-            
+
             task extractForAssertions(type: Copy) {
                 dependsOn publishNebulaPublicationToTestRepoRepository
                 from zipTree("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
@@ -320,11 +324,11 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             repositories {
                 maven { url "file:///${mavenRepo.getAbsolutePath()}" }
             }
-            
+
             dependencies {
                 // depends on org.slf4j:slf4j-api and log4j:log4j
                 shadeTransitively 'dep-that-depends-on:slf4j-log4j12:1'
-                
+
                 // yes, we really want to do this
                 shadeTransitively 'org.slf4j:slf4j-log4j12:1.7.30'
             }
@@ -357,10 +361,10 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             repositories {
                 maven { url "file:///${mavenRepo.getAbsolutePath()}" }
             }
-                        
+
             dependencies {
                 runtimeOnly 'org.apiguardian:apiguardian-api:1.1.0'
-                
+
                 shadeTransitively 'depends-on:api-guardian:1'
             }
         """.stripIndent()
@@ -380,7 +384,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
     def 'root level module-info-java should not break stuff'() {
         when:
-        buildFile << """                        
+        buildFile << """
             dependencies {
                 // This contains a root level module-info.class
                 shadeTransitively 'jakarta.ws.rs:jakarta.ws.rs-api:2.1.6'
@@ -399,14 +403,14 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         when:
         buildFile << """
             apply plugin: 'org.unbroken-dome.test-sets'
-            
+
             testSets {
                 integrationTest
             }
-                        
+
             dependencies {
                 shadeTransitively 'com.google.guava:guava:28.2-jre'
-                
+
                 testImplementation 'junit:junit:4.12'
                 integrationTestImplementation 'junit:junit:4.12'
             }
@@ -429,7 +433,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 public void use_guava_directly() {
                     ImmutableList.of();
                 }
-                
+
                 @Test
                 public void use_guava_though_main_source_set() {
                     MainSourceSetClass.useGuava();
@@ -446,7 +450,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 public void use_guava_directly() {
                     ImmutableList.of();
                 }
-                
+
                 @Test
                 public void use_guava_though_main_source_set() {
                     MainSourceSetClass.useGuava();
@@ -597,6 +601,703 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
         then:
         rerun.tasks(TaskOutcome.FROM_CACHE).path.contains(':shadowJar')
+    }
+
+    // ========================================
+    // shadeJust configuration tests
+    // ========================================
+
+    def 'when using shadeJust the produced pom has all transitive dependencies of the shaded dependency and only the direct dependency is shaded'() {
+        when:
+        buildFile << """
+            apply plugin: 'java-library'
+            dependencies {
+                api 'org.checkerframework:checker-qual:2.10.0'
+
+                shadeJust 'com.google.guava:guava:28.2-jre'
+            }
+        """.stripIndent()
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        def dependenciesText = dependenciesInPom()
+
+        // guava itself should not be in the POM (it's shaded)
+        assert !dependenciesText.contains('<artifactId>guava</artifactId>')
+
+        // But all of guava's transitive dependencies should be in the POM (not shaded)
+        assert dependenciesText.contains('<artifactId>error_prone_annotations</artifactId>')
+        assert dependenciesText.contains('<artifactId>listenablefuture</artifactId>')
+        assert dependenciesText.contains('<artifactId>jsr305</artifactId>')
+        assert dependenciesText.contains('<artifactId>checker-qual</artifactId>')
+
+        def jarEntryNames = jarEntryNames()
+
+        // Only guava classes should be shaded and included in the jar
+        assert jarEntryNames.contains(relocatedClass('com/google/common/io/ByteSink.class'))
+        assert jarEntryNames.contains(relocatedClass('com/google/common/util/concurrent/AbstractFuture$Waiter.class'))
+
+        // Transitive dependencies should NOT be shaded or included in the jar
+        assert !jarEntryNames.contains(relocatedClass('com/google/j2objc/annotations/Property.class'))
+        assert !jarEntryNames.contains(relocatedClass('com/google/errorprone/annotations/DoNotCall.class'))
+        assert !jarEntryNames.contains(relocatedClass('javax/annotation/Nullable.class'))
+        assert !jarEntryNames.contains('com/google/j2objc/annotations/Property.class')
+        assert !jarEntryNames.contains('com/google/errorprone/annotations/DoNotCall.class')
+        assert !jarEntryNames.contains('javax/annotation/Nullable.class')
+
+        assert !jarEntryNames.contains(relocatedClass('org/checkerframework/framework/qual/PolyAll.class'))
+        assert !jarEntryNames.contains('org/checkerframework/framework/qual/PolyAll.class')
+
+        // Verify that references to transitive classes are NOT relocated
+        def jarFile = shadowJarFile()
+        def classFileAsString = IOUtils.toString(jarFile.getInputStream(jarFile.getEntry(
+                relocatedClass('com/google/common/util/concurrent/AbstractFuture$Waiter.class'))),
+                StandardCharsets.US_ASCII)
+        assert classFileAsString.contains('org/checkerframework/checker/nullness/qual/Nullable')
+        assert !classFileAsString.contains(relocatedClass('org/checkerframework/checker/nullness/qual/Nullable'))
+    }
+
+    def 'shadeJust should not shade known logging implementations in transitives'() {
+        when:
+        def mavenRepo = generateMavenRepo(
+                'dep-that-depends-on:slf4j-log4j12:1 -> org.slf4j:slf4j-log4j12:1.7.30',
+        )
+
+        buildFile << """
+            repositories {
+                maven { url "file:///${mavenRepo.getAbsolutePath()}" }
+            }
+
+            dependencies {
+                // depends on org.slf4j:slf4j-api and log4j:log4j
+                shadeJust 'dep-that-depends-on:slf4j-log4j12:1'
+            }
+        """.stripIndent()
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        String dependenciesText = dependenciesInPom()
+
+        // slf4j-log4j12 is a transitive and should be in POM (not shaded since it's a logging impl)
+        assert dependenciesText.contains('<artifactId>slf4j-log4j12</artifactId>')
+        // The transitive dependencies of slf4j-log4j12 should also be in POM
+        assert !dependenciesText.contains('<artifactId>slf4j-api</artifactId>')  // pulled in by slf4j-log4j12
+        assert !dependenciesText.contains('<artifactId>log4j</artifactId>')  // pulled in by slf4j-log4j12
+
+        def jarEntryNames = jarEntryNames()
+
+        // No logging classes should be shaded
+        assert !jarEntryNames.contains(relocatedClass('org/slf4j/LoggerFactory.class'))
+        assert !jarEntryNames.contains(relocatedClass('org/apache/log4j/MDC.class'))
+        assert !jarEntryNames.contains(relocatedClass('org/slf4j/impl/Log4jLoggerFactory.class'))
+        // No logging classes should be in the jar at all (unshaded)
+        assert !jarEntryNames.contains('org/slf4j/LoggerFactory.class')
+        assert !jarEntryNames.contains('org/apache/log4j/MDC.class')
+        assert !jarEntryNames.contains('org/slf4j/impl/Log4jLoggerFactory.class')
+    }
+
+    def 'shadeJust should not shade tritium, tracing or safe-logging in transitives'() {
+        when:
+        def mavenRepo = generateMavenRepo(
+                'telemetry-dep:telemetry:1 -> ' +
+                        'com.palantir.tracing:tracing:6.17.0 ' +
+                        '| com.palantir.safe-logging:safe-logging:3.2.0 ' +
+                        '| com.palantir.tritium:tritium-registry:0.63.0'
+        )
+
+        buildFile << """
+            repositories {
+                maven { url "file:///${mavenRepo.getAbsolutePath()}" }
+            }
+
+            dependencies {
+                shadeJust 'telemetry-dep:telemetry:1'
+            }
+        """.stripIndent()
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        String dependenciesText = dependenciesInPom()
+
+        // All telemetry dependencies should be in POM (not shaded since they're rejected from shading)
+        assert dependenciesText.contains('<artifactId>tritium-registry</artifactId>')
+        assert dependenciesText.contains('<artifactId>tracing</artifactId>')
+        assert !dependenciesText.contains('<groupId>safe-logging</groupId>') // tracing contains safe-logging
+
+        def jarEntryNames = jarEntryNames()
+
+        // No telemetry classes should be shaded
+        assert !jarEntryNames.contains(relocatedClass('com/palantir/tracing/Tracer.class'))
+        assert !jarEntryNames.contains(relocatedClass(
+                'com/palantir/tritium/metrics/registry/DefaultTaggedMetricRegistry.class'))
+        assert !jarEntryNames.contains(relocatedClass('com/palantir/logsafe/SafeArg.class'))
+        // No telemetry classes should be in the jar at all (unshaded)
+        assert !jarEntryNames.contains('com/palantir/tracing/Tracer.class')
+        assert !jarEntryNames.contains('com/palantir/tritium/metrics/registry/DefaultTaggedMetricRegistry.class')
+        assert !jarEntryNames.contains('com/palantir/logsafe/SafeArg.class')
+    }
+
+    def 'shadeJust should support multi-release jars'() {
+        // https://www.baeldung.com/java-multi-release-jar
+
+        when:
+        buildFile << """
+            repositories {
+                mavenCentral()
+            }
+
+            dependencies {
+                shadeJust 'one.util:streamex:0.7.3'
+            }
+
+            task extractForAssertions(type: Copy) {
+                dependsOn publishNebulaPublicationToTestRepoRepository
+                from zipTree("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
+                into "\$buildDir/extractForAssertions"
+            }
+        """.stripIndent()
+
+        then:
+        writeHelloWorld()
+        runTasksAndCheckSuccess('extractForAssertions')
+
+        def jarEntryNames = shadowJarFile().stream()
+                .map({ it.name })
+                .collect(Collectors.toCollection({ new LinkedHashSet() }))
+
+        // streamex classes should be relocated
+        assert jarEntryNames.contains(
+                'META-INF/versions/9/shadow/com/palantir/bar_baz_quux/asd_fgh/one/util/streamex/VerSpec.class')
+        assert jarEntryNames.contains(
+                'META-INF/versions/9/shadow/com/palantir/bar_baz_quux/asd_fgh/one/util/streamex/Java9Specific.class')
+        assert !jarEntryNames.contains(
+                'META-INF/versions/9/one/util/streamex/VerSpec.class')
+        assert !jarEntryNames.contains(
+                'META-INF/versions/9/one/util/streamex/Java9Specific.class')
+
+        assert shadowJarFile().isMultiRelease() ?:
+                "The jar manifest must include 'Multi-Release: true', but was '" +
+                        file("build/extractForAssertions/META-INF/MANIFEST.MF").text + "'"
+
+        // What is of interest here is that this does not throw an exception
+        shadowJarFile().getManifest()
+    }
+
+    def 'shadeJust should support service-loader providers'() {
+        when:
+        buildFile << """
+            repositories {
+                mavenCentral()
+            }
+
+            dependencies {
+                // The service is not relocated, only the provider, which still must
+                // provide ws.rs-api 'jakarta.ws.rs.ext.RuntimeDelegate'
+                implementation 'jakarta.ws.rs:jakarta.ws.rs-api:3.1.0'
+                shadeJust 'org.glassfish.jersey.core:jersey-common:3.1.1'
+            }
+
+            task extractForAssertions(type: Copy) {
+                dependsOn publishNebulaPublicationToTestRepoRepository
+                from zipTree("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
+                into "\$buildDir/extractForAssertions"
+            }
+        """.stripIndent()
+
+        then:
+        writeHelloWorld()
+        runTasksAndCheckSuccess('extractForAssertions')
+
+        def jarEntryNames = shadowJarFile().stream()
+                .map({ it.name })
+                .collect(Collectors.toCollection({ new LinkedHashSet() }))
+
+        // Service loader file should exist and point to the relocated provider
+        def service = 'META-INF/services/jakarta.ws.rs.ext.RuntimeDelegate'
+        assert jarEntryNames.contains(service)
+        assert new File("${buildFile.parentFile.absolutePath}/build/extractForAssertions/${service}").text
+                == 'shadow.com.palantir.bar_baz_quux.asd_fgh.org.glassfish.jersey.internal.RuntimeDelegateImpl'
+
+        // Provider class should be relocated and in jar
+        assert jarEntryNames.contains(
+                'shadow/com/palantir/bar_baz_quux/asd_fgh/org/glassfish/jersey/internal/RuntimeDelegateImpl.class')
+
+        // Service interface is in implementation, so it should NOT be relocated
+        assert !jarEntryNames.contains(
+                'shadow/com/palantir/bar_baz_quux/asd_fgh/jakarta/ws/rs/ext/RuntimeDelegate.class')
+    }
+
+    def 'shadeJust should support service-loader providers for relocated services'() {
+        when:
+        buildFile << """
+            repositories {
+                mavenCentral()
+            }
+
+            dependencies {
+                // The service and provider are both relocated
+                shadeJust 'jakarta.ws.rs:jakarta.ws.rs-api:3.1.0'
+                shadeJust 'org.glassfish.jersey.core:jersey-common:3.1.1'
+            }
+
+            task extractForAssertions(type: Copy) {
+                dependsOn publishNebulaPublicationToTestRepoRepository
+                from zipTree("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
+                into "\$buildDir/extractForAssertions"
+            }
+        """.stripIndent()
+
+        then:
+        writeHelloWorld()
+        runTasksAndCheckSuccess('extractForAssertions')
+
+        def jarEntryNames = shadowJarFile().stream()
+                .map({ it.name })
+                .collect(Collectors.toCollection({ new LinkedHashSet() }))
+
+        // Service file should be relocated since the service interface is shaded
+        def service = 'META-INF/services/shadow.com.palantir.bar_baz_quux.asd_fgh.jakarta.ws.rs.ext.RuntimeDelegate'
+        assert !jarEntryNames.contains('shadow.com.palantir.bar_baz_quux.asd_fgh.META-INF/services/jakarta.ws.rs.ext.RuntimeDelegate')
+        assert jarEntryNames.contains(
+                'META-INF/services/shadow.com.palantir.bar_baz_quux.asd_fgh.jakarta.ws.rs.ext.RuntimeDelegate')
+        assert new File("${buildFile.parentFile.absolutePath}/build/extractForAssertions/${service}").text
+                == 'shadow.com.palantir.bar_baz_quux.asd_fgh.org.glassfish.jersey.internal.RuntimeDelegateImpl'
+
+        // Provider class should be relocated
+        assert jarEntryNames.contains(
+                'shadow/com/palantir/bar_baz_quux/asd_fgh/org/glassfish/jersey/internal/RuntimeDelegateImpl.class')
+    }
+
+    def 'shadeJust should shade known logging implementations iff it is placed in shadeJust directly'() {
+        when:
+        def mavenRepo = generateMavenRepo(
+                'dep-that-depends-on:slf4j-log4j12:1 -> org.slf4j:slf4j-log4j12:1.7.30',
+        )
+
+        buildFile << """
+            repositories {
+                maven { url "file:///${mavenRepo.getAbsolutePath()}" }
+            }
+
+            dependencies {
+                // depends on org.slf4j:slf4j-api and log4j:log4j
+                shadeJust 'dep-that-depends-on:slf4j-log4j12:1'
+
+                // yes, we really want to do this - explicitly shade the logging library
+                shadeJust 'org.slf4j:slf4j-log4j12:1.7.30'
+            }
+        """.stripIndent()
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        String dependenciesText = dependenciesInPom()
+
+        // We explicitly asked to shade the logging library, so it should not be in POM
+        assert !dependenciesText.contains('<artifactId>slf4j-log4j12</artifactId>')
+        // But its transitive dependencies should be in POM (not shaded)
+        assert dependenciesText.contains('<artifactId>slf4j-api</artifactId>')
+        assert dependenciesText.contains('<artifactId>log4j</artifactId>')
+
+        def jarEntryNames = jarEntryNames()
+
+        // slf4j-log4j12 classes should be shaded (we explicitly asked for it)
+        assert jarEntryNames.contains(relocatedClass('org/slf4j/impl/Log4jLoggerFactory.class'))
+
+        // But its transitive dependencies (slf4j-api and log4j) should NOT be shaded
+        assert !jarEntryNames.contains(relocatedClass('org/slf4j/LoggerFactory.class'))
+        assert !jarEntryNames.contains(relocatedClass('org/apache/log4j/MDC.class'))
+        assert !jarEntryNames.contains('org/slf4j/LoggerFactory.class')
+        assert !jarEntryNames.contains('org/apache/log4j/MDC.class')
+    }
+
+    def 'shadeJust should not shade runtimeOnly dependencies'() {
+        when:
+        def mavenRepo = generateMavenRepo(
+                'depends-on:api-guardian:1 -> org.apiguardian:apiguardian-api:1.1.0',
+        )
+
+        buildFile << """
+            repositories {
+                maven { url "file:///${mavenRepo.getAbsolutePath()}" }
+            }
+
+            dependencies {
+                runtimeOnly 'org.apiguardian:apiguardian-api:1.1.0'
+
+                shadeJust 'depends-on:api-guardian:1'
+            }
+        """.stripIndent()
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        def dependenciesText = dependenciesInPom()
+
+        // runtimeOnly dependency should be in POM
+        assert dependenciesText.contains('<artifactId>apiguardian-api</artifactId>')
+        // The shaded dependency itself should not be in POM
+        assert !dependenciesText.contains('<artifactId>api-guardian</artifactId>')
+
+        def jarEntryNames = jarEntryNames()
+
+        // runtimeOnly dependency should NOT be shaded or in jar
+        assert !jarEntryNames.contains(relocatedClass('org/apiguardian/api/API.class'))
+        assert !jarEntryNames.contains('org/apiguardian/api/API.class')
+    }
+
+    def 'shadeJust root level module-info-java should not break stuff'() {
+        when:
+        buildFile << """
+            dependencies {
+                // This contains a root level module-info.class
+                shadeJust 'jakarta.ws.rs:jakarta.ws.rs-api:2.1.6'
+            }
+        """.stripIndent()
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        def jarEntryNames = jarEntryNames()
+
+        // The directly shaded dependency classes should be relocated
+        assert jarEntryNames.contains(relocatedClass('javax/ws/rs/core/Response.class'))
+    }
+
+    def 'shadeJust should be available to test source sets'() {
+        when:
+        buildFile << """
+            apply plugin: 'org.unbroken-dome.test-sets'
+
+            testSets {
+                integrationTest
+            }
+
+            dependencies {
+                shadeJust 'com.google.guava:guava:28.2-jre'
+
+                testImplementation 'junit:junit:4.12'
+                integrationTestImplementation 'junit:junit:4.12'
+            }
+        """.stripIndent()
+
+        file('src/main/java/pkg/Foo.java') << '''
+            package pkg;
+            import com.google.common.collect.ImmutableList;
+            class MainSourceSetClass {
+                static void useGuava() { ImmutableList.of(); }
+            }
+        '''.stripIndent()
+
+        file('src/test/java/pkg/FooTest.java') << '''
+            package pkg;
+            import org.junit.Test;
+            import com.google.common.collect.ImmutableList;
+            public class FooTest {
+                @Test
+                public void use_guava_directly() {
+                    ImmutableList.of();
+                }
+
+                @Test
+                public void use_guava_though_main_source_set() {
+                    MainSourceSetClass.useGuava();
+                }
+            }
+        '''.stripIndent()
+
+        file('src/integrationTest/java/pkg/FooIntegrationTest.java') << '''
+            package pkg;
+            import org.junit.Test;
+            import com.google.common.collect.ImmutableList;
+            public class FooIntegrationTest {
+                @Test
+                public void use_guava_directly() {
+                    ImmutableList.of();
+                }
+
+                @Test
+                public void use_guava_though_main_source_set() {
+                    MainSourceSetClass.useGuava();
+                }
+            }
+        '''.stripIndent()
+
+        then:
+        runTasksAndCheckSuccess('test', 'integrationTest')
+    }
+
+    def 'shadeJust should only include directly shaded dependencies in jar, not implementation or runtimeOnly dependencies'() {
+        when:
+        buildFile << """
+            apply plugin: 'java-library'
+
+            dependencies {
+                // Only guava should be shaded and included in the jar
+                shadeJust 'com.google.guava:guava:28.2-jre'
+
+                // These should be in POM but NOT in jar
+                implementation 'org.checkerframework:checker-qual:3.10.0'
+                runtimeOnly 'org.apiguardian:apiguardian-api:1.1.0'
+                api 'com.google.code.findbugs:jsr305:3.0.2'
+            }
+        """.stripIndent()
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        def dependenciesText = dependenciesInPom()
+
+        // Dependencies not in shadeJust should be in POM
+        assert dependenciesText.contains('<artifactId>checker-qual</artifactId>')
+        assert dependenciesText.contains('<artifactId>apiguardian-api</artifactId>')
+        assert dependenciesText.contains('<artifactId>jsr305</artifactId>')
+
+        // Shaded dependency should NOT be in POM
+        assert !dependenciesText.contains('<artifactId>guava</artifactId>')
+
+        // But guava's transitive dependencies should be in POM
+        assert dependenciesText.contains('<artifactId>error_prone_annotations</artifactId>')
+        assert dependenciesText.contains('<artifactId>listenablefuture</artifactId>')
+
+        def jarEntryNames = jarEntryNames()
+
+        // Only directly shaded dependency (guava) should be in jar with relocation
+        assert jarEntryNames.contains(relocatedClass('com/google/common/collect/ImmutableList.class'))
+
+        // Transitive dependencies of guava should NOT be shaded or in jar
+        assert !jarEntryNames.contains(relocatedClass('com/google/errorprone/annotations/DoNotCall.class'))
+        assert !jarEntryNames.contains('com/google/errorprone/annotations/DoNotCall.class')
+
+        // Implementation/runtimeOnly/api dependencies should NOT be in jar at all (neither shaded nor unshaded)
+        assert !jarEntryNames.contains('org/checkerframework/checker/nullness/qual/Nullable.class')
+        assert !jarEntryNames.contains(relocatedClass('org/checkerframework/checker/nullness/qual/Nullable.class'))
+        assert !jarEntryNames.contains('org/apiguardian/api/API.class')
+        assert !jarEntryNames.contains(relocatedClass('org/apiguardian/api/API.class'))
+        assert !jarEntryNames.contains('javax/annotation/Nullable.class')
+        assert !jarEntryNames.contains(relocatedClass('javax/annotation/Nullable.class'))
+    }
+
+    def 'shadowJar task with shadeJust should be cacheable'() {
+        when:
+        buildFile << """
+            dependencies {
+                shadeJust 'com.google.guava:guava:28.2-jre'
+            }
+        """.stripIndent()
+
+        writeHelloWorld()
+
+        then:
+        runTasksAndCheckSuccess('--build-cache', 'shadowJar')
+
+        when:
+        def rerun = runTasksAndCheckSuccess('--build-cache', 'clean', 'shadowJar')
+
+        then:
+        rerun.tasks(TaskOutcome.FROM_CACHE).path.contains(':shadowJar')
+    }
+
+    // ========================================
+    // shadeTransitively and shadeJust interaction tests
+    // ========================================
+
+    def 'when both shadeTransitively and shadeJust are used on the same dependency, shadeTransitively wins and shades transitives'() {
+        when:
+        buildFile << """
+            apply plugin: 'java-library'
+            dependencies {
+                api 'org.checkerframework:checker-qual:2.10.0'
+
+                // Both configurations on the same dependency - shadeTransitively should win
+                shadeTransitively 'com.google.guava:guava:28.2-jre'
+                shadeJust 'com.google.guava:guava:28.2-jre'
+            }
+        """.stripIndent()
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        def dependenciesText = dependenciesInPom()
+
+        // guava should not be in the POM (it's shaded)
+        assert !dependenciesText.contains('<artifactId>guava</artifactId>')
+
+        // shadeTransitively wins, so transitives should also be shaded (NOT in POM)
+        assert !dependenciesText.contains('<artifactId>error_prone_annotations</artifactId>')
+        assert !dependenciesText.contains('<artifactId>listenablefuture</artifactId>')
+        assert !dependenciesText.contains('<artifactId>jsr305</artifactId>')
+
+        // Only the api dependency should be in POM
+        assert dependenciesText.contains('<artifactId>checker-qual</artifactId>')
+
+        def jarEntryNames = jarEntryNames()
+
+        // Both guava classes AND its transitive dependencies should be shaded and in jar
+        assert jarEntryNames.contains(relocatedClass('com/google/common/io/ByteSink.class'))
+        assert jarEntryNames.contains(relocatedClass('com/google/common/util/concurrent/AbstractFuture$Waiter.class'))
+        assert jarEntryNames.contains(relocatedClass('com/google/j2objc/annotations/Property.class'))
+        assert jarEntryNames.contains(relocatedClass('com/google/errorprone/annotations/DoNotCall.class'))
+        assert jarEntryNames.contains(relocatedClass('javax/annotation/Nullable.class'))
+
+        // Verify that references to transitive classes ARE relocated (shadeTransitively behavior)
+        def jarFile = shadowJarFile()
+        def classFileAsString = IOUtils.toString(jarFile.getInputStream(jarFile.getEntry(
+                relocatedClass('com/google/common/util/concurrent/AbstractFuture$Waiter.class'))),
+                StandardCharsets.US_ASCII)
+        // The reference should be relocated because shadeTransitively won
+        assert classFileAsString.contains(relocatedClass('javax/annotation/Nullable'))
+        assert !classFileAsString.contains('javax/annotation/Nullable')
+    }
+
+    def 'shadeJust should support wildcard matching for group IDs'() {
+        when:
+        def mavenRepo = generateMavenRepo(
+                'custom-dep:my-library:1 -> ' +
+                        'com.palantir.foo:foo-api:1.0.0 ' +
+                        '| com.palantir.bar:bar-core:2.0.0 ' +
+                        '| org.example:example-lib:3.0.0'
+        )
+
+        buildFile << """
+            repositories {
+                maven { url "file:///${mavenRepo.getAbsolutePath()}" }
+            }
+
+            dependencies {
+                // Use wildcard to shade all com.palantir.* dependencies
+                shadeJust 'com.palantir.*'
+                implementation 'custom-dep:my-library:1'
+            }
+        """.stripIndent()
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        def dependenciesText = dependenciesInPom()
+
+        // com.palantir.* dependencies should NOT be in POM (they're shaded)
+        assert !dependenciesText.contains('<artifactId>foo-api</artifactId>')
+        assert !dependenciesText.contains('<artifactId>bar-core</artifactId>')
+
+        // But org.example should be in POM (not matched by wildcard)
+        assert dependenciesText.contains('<artifactId>example-lib</artifactId>')
+
+        // custom-dep itself should be in POM (not shaded)
+        assert dependenciesText.contains('<artifactId>my-library</artifactId>')
+
+        def jarEntryNames = jarEntryNames()
+
+        // com.palantir.* classes should be shaded and in jar
+        assert jarEntryNames.contains(relocatedClass('com/palantir/foo/FooApi.class'))
+        assert jarEntryNames.contains(relocatedClass('com/palantir/bar/BarCore.class'))
+
+        // org.example should NOT be in jar (not matched by wildcard, kept as dependency)
+        assert !jarEntryNames.contains(relocatedClass('org/example/ExampleLib.class'))
+        assert !jarEntryNames.contains('org/example/ExampleLib.class')
+    }
+
+    def 'shadeJust wildcard should shade all matching dependencies at any depth, but not their transitives'() {
+        when:
+        def mavenRepo = generateMavenRepo(
+                'com.example:myapp:1 -> ' +
+                        'com.palantir.example:service:1.0.0 ' +
+                        '| com.google.guava:guava:28.2-jre',
+                'com.palantir.example:service:1.0.0 -> ' +
+                        'com.palantir.example:api:1.0.0 ' +
+                        '| org.slf4j:slf4j-api:1.7.30',
+                'com.palantir.example:api:1.0.0 -> org.checkerframework:checker-qual:2.10.0'
+        )
+
+        buildFile << """
+            repositories {
+                maven { url "file:///${mavenRepo.getAbsolutePath()}" }
+                mavenCentral()
+            }
+
+            dependencies {
+                // Use wildcard - should shade ANY com.palantir.example.* dependency (direct or transitive)
+                // but NOT their transitives
+                shadeJust 'com.palantir.example.*'
+                implementation 'com.example:myapp:1'
+            }
+        """.stripIndent()
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        def dependenciesText = dependenciesInPom()
+
+        // All com.palantir.example.* should NOT be in POM (shaded, even though some are transitive)
+        assert !dependenciesText.contains('<artifactId>service</artifactId>')
+        assert !dependenciesText.contains('<artifactId>api</artifactId>')
+
+        // But their transitive dependencies should be in POM (shadeJust doesn't shade transitives of matched deps)
+        assert dependenciesText.contains('<artifactId>guava</artifactId>')
+        assert dependenciesText.contains('<artifactId>checker-qual</artifactId>')
+        assert dependenciesText.contains('<artifactId>slf4j-api</artifactId>')
+
+        def jarEntryNames = jarEntryNames()
+
+        // All com.palantir.example.* classes should be shaded and in jar (even transitive ones)
+        assert jarEntryNames.contains(relocatedClass('com/palantir/example/Service.class'))
+        assert jarEntryNames.contains(relocatedClass('com/palantir/example/Api.class'))
+
+        // Their transitives should NOT be shaded or in jar
+        assert !jarEntryNames.contains(relocatedClass('com/google/common/collect/ImmutableList.class'))
+        assert !jarEntryNames.contains('com/google/common/collect/ImmutableList.class')
+        assert !jarEntryNames.contains(relocatedClass('org/checkerframework/checker/nullness/qual/Nullable.class'))
+        assert !jarEntryNames.contains('org/checkerframework/checker/nullness/qual/Nullable.class')
+        assert !jarEntryNames.contains(relocatedClass('org/slf4j/Logger.class'))
+        assert !jarEntryNames.contains('org/slf4j/Logger.class')
+    }
+
+    def 'shadeJust with multiple wildcards should shade all matching dependencies'() {
+        when:
+        def mavenRepo = generateMavenRepo(
+                'custom-dep:my-library:1 -> ' +
+                        'com.palantir.foo:foo-api:1.0.0 ' +
+                        '| com.example.bar:bar-core:2.0.0 ' +
+                        '| org.other:other-lib:3.0.0'
+        )
+
+        buildFile << """
+            repositories {
+                maven { url "file:///${mavenRepo.getAbsolutePath()}" }
+            }
+
+            dependencies {
+                // Multiple wildcards
+                shadeJust 'com.palantir.*'
+                shadeJust 'com.example.*'
+                implementation 'custom-dep:my-library:1'
+            }
+        """.stripIndent()
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        def dependenciesText = dependenciesInPom()
+
+        // Both com.palantir.* and com.example.* should NOT be in POM (shaded)
+        assert !dependenciesText.contains('<artifactId>foo-api</artifactId>')
+        assert !dependenciesText.contains('<artifactId>bar-core</artifactId>')
+
+        // org.other should be in POM (not matched by any wildcard)
+        assert dependenciesText.contains('<artifactId>other-lib</artifactId>')
+
+        def jarEntryNames = jarEntryNames()
+
+        // Both matched patterns should be shaded and in jar
+        assert jarEntryNames.contains(relocatedClass('com/palantir/foo/FooApi.class'))
+        assert jarEntryNames.contains(relocatedClass('com/example/bar/BarCore.class'))
+
+        // org.other should NOT be in jar
+        assert !jarEntryNames.contains(relocatedClass('org/other/OtherLib.class'))
+        assert !jarEntryNames.contains('org/other/OtherLib.class')
     }
 
     @CompileStatic
