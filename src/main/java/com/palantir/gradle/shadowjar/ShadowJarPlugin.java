@@ -237,9 +237,11 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     })
                     .collect(Collectors.toSet());
 
-            // Apply banned library filtering (same as before)
-            Set<ResolvedDependency> directlyRejectedModules =
-                    allShadedModules.stream().filter(ShadowJarPlugin::isBanned).collect(Collectors.toSet());
+            // Apply banned library filtering across ALL modules in shaded config, not just candidates
+            // This ensures banned libraries in transitives are properly rejected even when using shadeJust
+            Set<ResolvedDependency> directlyRejectedModules = shadedAllModules.stream()
+                    .filter(ShadowJarPlugin::isBanned)
+                    .collect(Collectors.toSet());
 
             Set<ResolvedDependency> highestLevelRejectedModules =
                     Sets.difference(directlyRejectedModules, allChildren(directlyRejectedModules));

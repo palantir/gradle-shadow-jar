@@ -681,11 +681,12 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
         String dependenciesText = dependenciesInPom()
 
-        // slf4j-log4j12 is a transitive and should be in POM (not shaded since it's a logging impl)
+        // slf4j-log4j12 is a transitive banned library and should be in POM (not shaded)
+        // Only the top-level banned library should be in POM; its transitives (slf4j-api, log4j)
+        // will be automatically pulled in by Maven/Gradle (same behavior as shadeTransitively)
         assert dependenciesText.contains('<artifactId>slf4j-log4j12</artifactId>')
-        // The transitive dependencies of slf4j-log4j12 should also be in POM
-        assert dependenciesText.contains('<artifactId>slf4j-api</artifactId>')  // pulled in by slf4j-log4j12
-        assert dependenciesText.contains('<artifactId>log4j</artifactId>')  // pulled in by slf4j-log4j12
+        assert !dependenciesText.contains('<artifactId>slf4j-api</artifactId>')
+        assert !dependenciesText.contains('<artifactId>log4j</artifactId>')
 
         def jarEntryNames = jarEntryNames()
 
