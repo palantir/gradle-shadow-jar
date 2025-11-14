@@ -110,20 +110,25 @@ public class ShadowJarPlugin implements Plugin<Project> {
         ShadeJustRegistry registry = new ShadeJustRegistry();
         project.getExtensions().add("shadeJustRegistry", registry);
 
+        // Combined configuration for all shaded dependencies
+        NamedDomainObjectProvider<Configuration> shaded = project.getConfigurations()
+                .register("shaded", conf -> {
+                    conf.setCanBeConsumed(false);
+                    conf.setVisible(false);
+                });
+
         // Register the shadeJust extension with the dependencies block
-        ShadeJustExtension.registerWith(project, registry);
+        ShadeJustExtension.registerWith(project, registry, "shadeJust", "shaded");
 
-        NamedDomainObjectProvider<Configuration> shadeTransitively = project.getConfigurations()
-                .register("shadeTransitively", conf -> {
-                    conf.setCanBeConsumed(false);
-                    conf.setVisible(false);
-                });
-
-        NamedDomainObjectProvider<Configuration> shadeJust = project.getConfigurations()
-                .register("shadeJustInternal", conf -> {
-                    conf.setCanBeConsumed(false);
-                    conf.setVisible(false);
-                });
+        // Register shadeTransitively - it uses the same configuration but with a match-all filter
+        // Custom filters are not allowed for shadeTransitively
+        ShadeJustExtension.registerWith(
+                project,
+                registry,
+                "shadeTransitively",
+                "shaded",
+                dep -> registry.registerFilter(dep, _resolvedDep -> true),
+                false); // disallow custom filters
 
         NamedDomainObjectProvider<Configuration> unshaded = project.getConfigurations()
                 .register("unshaded", conf -> {
@@ -148,8 +153,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     runtimeElements.extendsFrom(rejectedFromShading.get());
                 });
 
-        ShadowJarVersionLock.lockConfiguration(project, shadeTransitively);
-        ShadowJarVersionLock.lockConfiguration(project, shadeJust);
+        ShadowJarVersionLock.lockConfiguration(project, shaded);
         ShadowJarVersionLock.lockConfiguration(project, unshaded);
 
         // This is needed to "break the loop" when GCV does --write-locks. At project.afterEvaluate, VersionsLockPlugin
@@ -178,8 +182,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
                         .map(project.getConfigurations()::getByName)
                         .forEach(classpathConf -> {
                             unshadedConf.extendsFrom(classpathConf.getExtendsFrom().stream()
-                                    .filter(extendsFromConf -> extendsFromConf != shadeTransitively.get()
-                                            && extendsFromConf != shadeJust.get()
+                                    .filter(extendsFromConf -> extendsFromConf != shaded.get()
                                             && extendsFromConf != rejectedFromShading.get())
                                     // Filter out shading configs so they don't appear in unshaded
                                     // rejectedFromShading is added via runtimeElements directly
@@ -193,28 +196,16 @@ public class ShadowJarPlugin implements Plugin<Project> {
                         sourceSet.getRuntimeClasspathConfigurationName())
                 .map(project.getConfigurations()::named)
                 .forEach(confProvider -> confProvider.configure(conf -> {
-                    conf.extendsFrom(shadeTransitively.get());
-                    conf.extendsFrom(shadeJust.get()); // For compilation/runtime access
+                    conf.extendsFrom(shaded.get()); // For compilation/runtime access
                 })));
 
-        Provider<ShadowingCalculation> shadowingCalculation = shadeTransitively
-                .zip(shadeJust, (shadeTransitivelyConf, shadeJustConf) -> {
-                    return new Configuration[] {shadeTransitivelyConf, shadeJustConf};
-                })
-                .zip(unshaded, (configs, unshadedConf) -> {
-                    Configuration shadeTransitivelyConf = configs[0];
-                    Configuration shadeJustConf = configs[1];
+        Provider<ShadowingCalculation> shadowingCalculation = shaded
+                .zip(unshaded, (shadedConf, unshadedConf) -> {
+                    // Get all resolved dependencies from the shaded configuration
+                    Set<ResolvedDependency> shadedDirectModules =
+                            shadedConf.getResolvedConfiguration().getFirstLevelModuleDependencies();
 
-                    // Get all resolved dependencies from both configurations
-                    Set<ResolvedDependency> shadeTransitivelyModules = shadeTransitivelyConf
-                            .getResolvedConfiguration()
-                            .getLenientConfiguration()
-                            .getAllModuleDependencies();
-
-                    Set<ResolvedDependency> shadeJustDirectModules =
-                            shadeJustConf.getResolvedConfiguration().getFirstLevelModuleDependencies();
-
-                    Set<ResolvedDependency> shadeJustAllModules = shadeJustConf
+                    Set<ResolvedDependency> shadedAllModules = shadedConf
                             .getResolvedConfiguration()
                             .getLenientConfiguration()
                             .getAllModuleDependencies();
@@ -224,33 +215,30 @@ public class ShadowJarPlugin implements Plugin<Project> {
                             .getLenientConfiguration()
                             .getAllModuleDependencies();
 
-                    // Get dependencies that are explicitly declared (api, implementation, etc.)
-                    // These should NEVER be shaded, even if they're also transitives of shaded deps
-                    Set<ResolvedDependency> explicitlyDeclaredUnshadedModules =
-                            Sets.difference(unshadedModules, shadeJustAllModules);
-
-                    // Step 1: shadeTransitively wins - shade everything from it
-                    // BUT: still exclude explicitly declared unshaded modules (api, implementation, etc.)
-                    Set<ResolvedDependency> fromShadeTransitively =
-                            Sets.difference(shadeTransitivelyModules, explicitlyDeclaredUnshadedModules);
-
-                    // Step 2: shadeJust - only shade direct deps + filtered transitives
-                    Set<ResolvedDependency> fromShadeJust = shadeJustAllModules.stream()
+                    // Filter shaded modules based on:
+                    // 1. Direct dependencies are always shaded
+                    // 2. Transitives are shaded if they match the filter (or if no filter = shade all)
+                    // 3. Modules that appear in unshaded are NEVER shaded
+                    Set<ResolvedDependency> filteredShadedModules = shadedAllModules.stream()
                             .filter(candidate -> {
-                                // If it's a direct shadeJust dependency, always shade it
-                                if (shadeJustDirectModules.contains(candidate)) {
+                                // Never shade modules that appear in unshaded (api/implementation/etc)
+                                if (unshadedModules.contains(candidate)) {
+                                    return false;
+                                }
+
+                                // If it's a direct shaded dependency, always shade it
+                                if (shadedDirectModules.contains(candidate)) {
                                     return true;
                                 }
 
-                                // Check if any parent shadeJust dependency has a filter that matches
-                                return shadeJustDirectModules.stream()
+                                // Check if any parent shaded dependency has a filter that matches
+                                return shadedDirectModules.stream()
                                         .filter(directDep -> isTransitiveOf(candidate, directDep))
                                         .anyMatch(directDep -> registry.shouldShadeTransitive(directDep, candidate));
                             })
                             .collect(Collectors.toSet());
 
-                    // Combine both sets (shadeTransitively takes precedence - use union so no duplicates)
-                    Set<ResolvedDependency> allShadedModules = Sets.union(fromShadeTransitively, fromShadeJust);
+                    Set<ResolvedDependency> allShadedModules = filteredShadedModules;
 
                     // Apply banned library filtering (same as before)
                     Set<ResolvedDependency> directlyRejectedModules = allShadedModules.stream()
@@ -262,8 +250,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
                     Set<ResolvedDependency> highestLevelRejectedModulesThatArentDirectlyListed = Sets.filter(
                             highestLevelRejectedModules,
-                            dependency -> moduleDoesNotExistDirectlyInConfiguration(shadeTransitivelyConf, dependency)
-                                    && moduleDoesNotExistDirectlyInConfiguration(shadeJustConf, dependency));
+                            dependency -> moduleDoesNotExistDirectlyInConfiguration(shadedConf, dependency));
 
                     Set<ResolvedDependency> transitivelyRejectedModules =
                             selfAndAllChildren(highestLevelRejectedModulesThatArentDirectlyListed);
@@ -271,18 +258,18 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     Set<ResolvedDependency> acceptedModules =
                             Sets.difference(allShadedModules, transitivelyRejectedModules);
 
-                    // Compute unshaded transitives from shadeJust
+                    // Compute unshaded transitives from shaded deps
                     // These are transitives that don't match the filter and weren't rejected
-                    Set<ResolvedDependency> unshadedShadeJustTransitives = shadeJustAllModules.stream()
-                            .filter(module -> !shadeJustDirectModules.contains(module)) // Not direct
+                    Set<ResolvedDependency> unshadedShadedTransitives = shadedAllModules.stream()
+                            .filter(module -> !shadedDirectModules.contains(module)) // Not direct
                             .filter(module -> !acceptedModules.contains(module)) // Not shaded
-                            .filter(module -> !highestLevelRejectedModulesThatArentDirectlyListed.contains(module)) // Not rejected
+                            .filter(module -> !transitivelyRejectedModules.contains(module)) // Not rejected (including transitives)
                             .collect(Collectors.toSet());
 
                     return ImmutableShadowingCalculation.builder()
                             .acceptedShadedModules(acceptedModules)
                             .rejectedShadedModules(highestLevelRejectedModulesThatArentDirectlyListed)
-                            .unshadedShadeJustTransitives(unshadedShadeJustTransitives)
+                            .unshadedShadedTransitives(unshadedShadedTransitives)
                             .build();
                 });
 
@@ -296,8 +283,8 @@ public class ShadowJarPlugin implements Plugin<Project> {
                 pomDeps.add(project.getDependencies().create(depToString(module)));
             });
 
-            // Add unshaded transitives from shadeJust
-            calc.unshadedShadeJustTransitives().forEach(module -> {
+            // Add unshaded transitives from shaded deps
+            calc.unshadedShadedTransitives().forEach(module -> {
                 pomDeps.add(project.getDependencies().create(depToString(module)));
             });
 
@@ -305,7 +292,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
         })));
 
         shadowJarProvider.configure(shadowJar -> {
-            shadowJar.getConfigurations().set(shadeTransitively.zip(shadeJust, List::of));
+            shadowJar.getConfigurations().set(project.provider(() -> List.of(shaded.get())));
 
             shadowJar.getDependencyFilter().set(shadowingCalculation.map(calc -> {
                 DefaultDependencyFilter filter = new DefaultDependencyFilter(project);
@@ -364,8 +351,8 @@ public class ShadowJarPlugin implements Plugin<Project> {
         /** Banned libraries that were rejected from shading and should appear in the POM */
         Set<ResolvedDependency> rejectedShadedModules();
 
-        /** Unshaded transitives from shadeJust that should appear in the POM */
-        Set<ResolvedDependency> unshadedShadeJustTransitives();
+        /** Unshaded transitives from shaded deps that should appear in the POM */
+        Set<ResolvedDependency> unshadedShadedTransitives();
     }
 
     private String depToString(ResolvedDependency resolvedDependency) {
