@@ -1106,55 +1106,54 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
     // shadeTransitively and shadeJust interaction tests
     // ========================================
 
-    // IGNORE FOR NOW
-//    def 'when both shadeTransitively and shadeJust are used on the same dependency, shadeTransitively wins and shades transitives'() {
-//        when:
-//        buildFile << """
-//            apply plugin: 'java-library'
-//            dependencies {
-//                api 'org.checkerframework:checker-qual:2.10.0'
-//
-//                // Both configurations on the same dependency - shadeTransitively should win
-//                shadeTransitively 'com.google.guava:guava:28.2-jre'
-//                shadeJust 'com.google.guava:guava:28.2-jre'
-//            }
-//        """.stripIndent()
-//
-//        then:
-//        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
-//
-//        def dependenciesText = dependenciesInPom()
-//
-//        // guava should not be in the POM (it's shaded)
-//        assert !dependenciesText.contains('<artifactId>guava</artifactId>')
-//
-//        // shadeTransitively wins, so transitives should also be shaded (NOT in POM)
-//        assert !dependenciesText.contains('<artifactId>error_prone_annotations</artifactId>')
-//        assert !dependenciesText.contains('<artifactId>listenablefuture</artifactId>')
-//        assert !dependenciesText.contains('<artifactId>jsr305</artifactId>')
-//
-//        // Only the api dependency should be in POM
-//        assert dependenciesText.contains('<artifactId>checker-qual</artifactId>')
-//
-//        def jarEntryNames = jarEntryNames()
-//
-//        // Both guava classes AND its transitive dependencies should be shaded (shadeTransitively wins)
-//        assert jarEntryNames.containsAll([
-//                relocatedClass('com/google/j2objc/annotations/Property.class'),
-//                relocatedClass('com/google/errorprone/annotations/DoNotCall.class'),
-//                relocatedClass('com/google/common/io/ByteSink.class'),
-//                relocatedClass('javax/annotation/Nullable.class'),
-//        ])
-//
-//        // Verify that references to transitive classes ARE relocated (shadeTransitively behavior)
-//        def jarFile = shadowJarFile()
-//        def classFileAsString = IOUtils.toString(jarFile.getInputStream(jarFile.getEntry(
-//                relocatedClass('com/google/common/util/concurrent/AbstractFuture$Waiter.class'))),
-//                StandardCharsets.US_ASCII)
-//        // checker-qual is api dependency - references should NOT be relocated
-//        assert classFileAsString.contains('org/checkerframework/checker/nullness/qual/Nullable')
-//        assert !classFileAsString.contains(relocatedClass('org/checkerframework/checker/nullness/qual/Nullable'))
-//    }
+    def 'when both shadeTransitively and shadeJust are used on the same dependency, shadeTransitively wins and shades transitives'() {
+        when:
+        buildFile << """
+            apply plugin: 'java-library'
+            dependencies {
+                api 'org.checkerframework:checker-qual:2.10.0'
+
+                // Both configurations on the same dependency - shadeTransitively should win
+                shadeTransitively 'com.google.guava:guava:28.2-jre'
+                shadeJust 'com.google.guava:guava:28.2-jre'
+            }
+        """.stripIndent()
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        def dependenciesText = dependenciesInPom()
+
+        // guava should not be in the POM (it's shaded)
+        assert !dependenciesText.contains('<artifactId>guava</artifactId>')
+
+        // shadeTransitively wins, so transitives should also be shaded (NOT in POM)
+        assert !dependenciesText.contains('<artifactId>error_prone_annotations</artifactId>')
+        assert !dependenciesText.contains('<artifactId>listenablefuture</artifactId>')
+        assert !dependenciesText.contains('<artifactId>jsr305</artifactId>')
+
+        // Only the api dependency should be in POM
+        assert dependenciesText.contains('<artifactId>checker-qual</artifactId>')
+
+        def jarEntryNames = jarEntryNames()
+
+        // Both guava classes AND its transitive dependencies should be shaded (shadeTransitively wins)
+        assert jarEntryNames.containsAll([
+                relocatedClass('com/google/j2objc/annotations/Property.class'),
+                relocatedClass('com/google/errorprone/annotations/DoNotCall.class'),
+                relocatedClass('com/google/common/io/ByteSink.class'),
+                relocatedClass('javax/annotation/Nullable.class'),
+        ])
+
+        // Verify that references to transitive classes ARE relocated (shadeTransitively behavior)
+        def jarFile = shadowJarFile()
+        def classFileAsString = IOUtils.toString(jarFile.getInputStream(jarFile.getEntry(
+                relocatedClass('com/google/common/util/concurrent/AbstractFuture$Waiter.class'))),
+                StandardCharsets.US_ASCII)
+        // checker-qual is api dependency - references should NOT be relocated
+        assert classFileAsString.contains('org/checkerframework/checker/nullness/qual/Nullable')
+        assert !classFileAsString.contains(relocatedClass('org/checkerframework/checker/nullness/qual/Nullable'))
+    }
 
     def 'shadeJust with transitiveFilter should shade matching transitive dependencies'() {
         when:
