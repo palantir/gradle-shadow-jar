@@ -1153,7 +1153,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         assert !classFileAsString.contains('javax/annotation/Nullable')
     }
 
-    def 'shadeJust should support wildcard matching for group IDs'() {
+    def 'shadeJust with transitiveFilter should shade matching transitive dependencies'() {
         when:
         def mavenRepo = generateMavenRepo(
                 'custom-dep:my-library:1 -> ' +
@@ -1168,9 +1168,12 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             }
 
             dependencies {
-                // Use wildcard to shade all com.palantir.* dependencies
-                shadeJust 'com.palantir.*'
-                implementation 'custom-dep:my-library:1'
+                // Use transitiveFilter to shade all com.palantir.* dependencies (even transitives)
+                shadeJust('custom-dep:my-library:1') {
+                    transitiveFilter { dependency ->
+                        dependency.group.startsWith('com.palantir.')
+                    }
+                }
             }
         """.stripIndent()
 
@@ -1179,28 +1182,29 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
         def dependenciesText = dependenciesInPom()
 
-        // com.palantir.* dependencies should NOT be in POM (they're shaded)
+        // custom-dep:my-library should NOT be in POM (it's the direct shadeJust dependency)
+        assert !dependenciesText.contains('<artifactId>my-library</artifactId>')
+
+        // com.palantir.* dependencies should NOT be in POM (matched by transitiveFilter)
         assert !dependenciesText.contains('<artifactId>foo-api</artifactId>')
         assert !dependenciesText.contains('<artifactId>bar-core</artifactId>')
 
-        // But org.example should be in POM (not matched by wildcard)
+        // But org.example should be in POM (not matched by transitiveFilter)
         assert dependenciesText.contains('<artifactId>example-lib</artifactId>')
-
-        // custom-dep itself should be in POM (not shaded)
-        assert dependenciesText.contains('<artifactId>my-library</artifactId>')
 
         def jarEntryNames = jarEntryNames()
 
-        // com.palantir.* classes should be shaded and in jar
+        // custom-dep and com.palantir.* classes should be shaded and in jar
+        assert jarEntryNames.contains(relocatedClass('custom/dep/MyLibrary.class'))
         assert jarEntryNames.contains(relocatedClass('com/palantir/foo/FooApi.class'))
         assert jarEntryNames.contains(relocatedClass('com/palantir/bar/BarCore.class'))
 
-        // org.example should NOT be in jar (not matched by wildcard, kept as dependency)
+        // org.example should NOT be in jar (not matched, kept as dependency)
         assert !jarEntryNames.contains(relocatedClass('org/example/ExampleLib.class'))
         assert !jarEntryNames.contains('org/example/ExampleLib.class')
     }
 
-    def 'shadeJust wildcard should shade all matching dependencies at any depth, but not their transitives'() {
+    def 'shadeJust transitiveFilter should shade matching dependencies at any depth, but not their transitives'() {
         when:
         def mavenRepo = generateMavenRepo(
                 'com.example:myapp:1 -> ' +
@@ -1219,10 +1223,13 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             }
 
             dependencies {
-                // Use wildcard - should shade ANY com.palantir.example.* dependency (direct or transitive)
+                // Use transitiveFilter - should shade ANY com.palantir.example.* dependency (direct or transitive)
                 // but NOT their transitives
-                shadeJust 'com.palantir.example.*'
-                implementation 'com.example:myapp:1'
+                shadeJust('com.example:myapp:1') {
+                    transitiveFilter { dependency ->
+                        dependency.group.startsWith('com.palantir.example.')
+                    }
+                }
             }
         """.stripIndent()
 
@@ -1231,18 +1238,22 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
         def dependenciesText = dependenciesInPom()
 
-        // All com.palantir.example.* should NOT be in POM (shaded, even though some are transitive)
+        // myapp should NOT be in POM (direct shadeJust dependency)
+        assert !dependenciesText.contains('<artifactId>myapp</artifactId>')
+
+        // All com.palantir.example.* should NOT be in POM (matched by transitiveFilter)
         assert !dependenciesText.contains('<artifactId>service</artifactId>')
         assert !dependenciesText.contains('<artifactId>api</artifactId>')
 
-        // But their transitive dependencies should be in POM (shadeJust doesn't shade transitives of matched deps)
+        // But their transitive dependencies should be in POM (not matched by filter)
         assert dependenciesText.contains('<artifactId>guava</artifactId>')
         assert dependenciesText.contains('<artifactId>checker-qual</artifactId>')
         assert dependenciesText.contains('<artifactId>slf4j-api</artifactId>')
 
         def jarEntryNames = jarEntryNames()
 
-        // All com.palantir.example.* classes should be shaded and in jar (even transitive ones)
+        // myapp and all com.palantir.example.* classes should be shaded and in jar
+        assert jarEntryNames.contains(relocatedClass('com/example/MyApp.class'))
         assert jarEntryNames.contains(relocatedClass('com/palantir/example/Service.class'))
         assert jarEntryNames.contains(relocatedClass('com/palantir/example/Api.class'))
 
@@ -1255,7 +1266,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         assert !jarEntryNames.contains('org/slf4j/Logger.class')
     }
 
-    def 'shadeJust with multiple wildcards should shade all matching dependencies'() {
+    def 'shadeJust with multiple transitiveFilters should shade all matching dependencies'() {
         when:
         def mavenRepo = generateMavenRepo(
                 'custom-dep:my-library:1 -> ' +
@@ -1270,10 +1281,13 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             }
 
             dependencies {
-                // Multiple wildcards
-                shadeJust 'com.palantir.*'
-                shadeJust 'com.example.*'
-                implementation 'custom-dep:my-library:1'
+                // Multiple filters to match different patterns
+                shadeJust('custom-dep:my-library:1') {
+                    transitiveFilter { dependency ->
+                        dependency.group.startsWith('com.palantir.') ||
+                        dependency.group.startsWith('com.example.')
+                    }
+                }
             }
         """.stripIndent()
 
@@ -1282,22 +1296,70 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
         def dependenciesText = dependenciesInPom()
 
-        // Both com.palantir.* and com.example.* should NOT be in POM (shaded)
+        // my-library should NOT be in POM (direct shadeJust dependency)
+        assert !dependenciesText.contains('<artifactId>my-library</artifactId>')
+
+        // Both com.palantir.* and com.example.* should NOT be in POM (matched by filter)
         assert !dependenciesText.contains('<artifactId>foo-api</artifactId>')
         assert !dependenciesText.contains('<artifactId>bar-core</artifactId>')
 
-        // org.other should be in POM (not matched by any wildcard)
+        // org.other should be in POM (not matched by filter)
         assert dependenciesText.contains('<artifactId>other-lib</artifactId>')
 
         def jarEntryNames = jarEntryNames()
 
-        // Both matched patterns should be shaded and in jar
+        // All matched dependencies should be shaded and in jar
+        assert jarEntryNames.contains(relocatedClass('custom/dep/MyLibrary.class'))
         assert jarEntryNames.contains(relocatedClass('com/palantir/foo/FooApi.class'))
         assert jarEntryNames.contains(relocatedClass('com/example/bar/BarCore.class'))
 
         // org.other should NOT be in jar
         assert !jarEntryNames.contains(relocatedClass('org/other/OtherLib.class'))
         assert !jarEntryNames.contains('org/other/OtherLib.class')
+    }
+
+    def 'shadeJust without transitiveFilter should only shade the direct dependency'() {
+        when:
+        def mavenRepo = generateMavenRepo(
+                'com.example:myapp:1 -> ' +
+                        'com.palantir.example:service:1.0.0 ' +
+                        '| com.google.guava:guava:28.2-jre'
+        )
+
+        buildFile << """
+            repositories {
+                maven { url "file:///${mavenRepo.getAbsolutePath()}" }
+                mavenCentral()
+            }
+
+            dependencies {
+                // No transitiveFilter - should only shade myapp, not its transitives
+                shadeJust 'com.example:myapp:1'
+            }
+        """.stripIndent()
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        def dependenciesText = dependenciesInPom()
+
+        // myapp should NOT be in POM (direct shadeJust dependency)
+        assert !dependenciesText.contains('<artifactId>myapp</artifactId>')
+
+        // All transitives should be in POM (no filter applied)
+        assert dependenciesText.contains('<artifactId>service</artifactId>')
+        assert dependenciesText.contains('<artifactId>guava</artifactId>')
+
+        def jarEntryNames = jarEntryNames()
+
+        // Only myapp should be shaded and in jar
+        assert jarEntryNames.contains(relocatedClass('com/example/MyApp.class'))
+
+        // Transitives should NOT be in jar
+        assert !jarEntryNames.contains(relocatedClass('com/palantir/example/Service.class'))
+        assert !jarEntryNames.contains('com/palantir/example/Service.class')
+        assert !jarEntryNames.contains(relocatedClass('com/google/common/collect/ImmutableList.class'))
+        assert !jarEntryNames.contains('com/google/common/collect/ImmutableList.class')
     }
 
     @CompileStatic
