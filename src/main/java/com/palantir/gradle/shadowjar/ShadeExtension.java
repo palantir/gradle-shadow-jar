@@ -47,8 +47,7 @@ public record ShadeExtension(
      * This makes the method available in the dependencies {} block.
      */
     public static void registerWith(Project project, ShadeRegistry registry, String name, String configurationName) {
-        ShadeExtension extension =
-                new ShadeExtension(project, registry, configurationName, Optional.empty(), true);
+        ShadeExtension extension = new ShadeExtension(project, registry, configurationName, Optional.empty(), true);
         project.getDependencies().getExtensions().add(name, extension);
     }
 
@@ -77,7 +76,7 @@ public record ShadeExtension(
      * @param dependencyNotation the dependency notation (e.g., "group:name:version")
      * @return the created Dependency
      */
-    public Dependency call(Object dependencyNotation) {
+    public Dependency call(String dependencyNotation) {
         Dependency dep = project.getDependencies().add(configurationName, dependencyNotation);
         if (dep instanceof ExternalModuleDependency) {
             postAddCallback.ifPresent(callback -> callback.accept(dep));
@@ -92,7 +91,7 @@ public record ShadeExtension(
      * @param configureClosure closure to configure the ShadeDependencySpec
      * @return the created Dependency
      */
-    public Dependency call(Object dependencyNotation, Closure<Void> configureClosure) {
+    public Dependency call(String dependencyNotation, Closure<Void> configureClosure) {
         Dependency dep = project.getDependencies().add(configurationName, dependencyNotation);
 
         if (dep instanceof ExternalModuleDependency) {

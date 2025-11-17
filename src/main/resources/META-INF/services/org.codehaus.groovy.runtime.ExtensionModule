@@ -1,0 +1,3 @@
+moduleName=gradle-shadow-jar-extensions
+moduleVersion=1.0
+extensionClasses=com.palantir.gradle.shadowjar.DependencyHandlerExtensions

@@ -48,8 +48,7 @@ public final class ShadeRegistry {
      * @param transitiveDependency the transitive dependency to check
      * @return true if the transitive should be shaded according to the filter, false otherwise
      */
-    public boolean shouldShadeTransitive(
-            ResolvedDependency directDependency, ResolvedDependency transitiveDependency) {
+    public boolean shouldShadeTransitive(ResolvedDependency directDependency, ResolvedDependency transitiveDependency) {
         String key = makeKey(directDependency.getModuleGroup(), directDependency.getModuleName());
         return Optional.ofNullable(filters.get(key))
                 .map(filter -> filter.test(transitiveDependency))
