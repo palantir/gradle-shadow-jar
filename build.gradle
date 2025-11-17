@@ -61,6 +61,8 @@ dependencies {
     testImplementation 'com.netflix.nebula:nebula-test'
     testImplementation 'commons-io:commons-io'
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml'
+
     testRuntimeOnly 'org.junit.vintage:junit-vintage-engine', {
         because 'allows JUnit 3 and JUnit 4 tests to run'
     }

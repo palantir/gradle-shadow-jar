@@ -19,6 +19,10 @@ package com.palantir.gradle.shadowjar;
 import static com.palantir.gradle.testing.assertion.GradlePluginTestAssertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import com.palantir.gradle.testing.execution.GradleInvoker;
 import com.palantir.gradle.testing.execution.InvocationResult;
 import com.palantir.gradle.testing.junit.GradlePluginTests;
@@ -26,10 +30,13 @@ import com.palantir.gradle.testing.maven.MavenArtifact;
 import com.palantir.gradle.testing.maven.MavenRepo;
 import com.palantir.gradle.testing.project.RootProject;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
@@ -117,8 +124,7 @@ class ShadowJarPluginIntegrationSpec {
     }
 
     @Test
-    void should_not_shade_known_logging_implementations(GradleInvoker gradle, RootProject project, MavenRepo repo)
-            throws IOException {
+    void should_not_shade_known_logging_implementations(GradleInvoker gradle, RootProject project, MavenRepo repo) {
         repo.publish(MavenArtifact.builder()
                 .coordinate("dep-that-depends-on:slf4j-log4j12:1")
                 .addDependency("org.slf4j:slf4j-log4j12:1.7.30")
@@ -152,8 +158,7 @@ class ShadowJarPluginIntegrationSpec {
     }
 
     @Test
-    void should_not_shade_tritium_tracing_or_safe_logging(GradleInvoker gradle, RootProject project, MavenRepo repo)
-            throws IOException {
+    void should_not_shade_tritium_tracing_or_safe_logging(GradleInvoker gradle, RootProject project, MavenRepo repo) {
         repo.publish(MavenArtifact.builder()
                 .coordinate("telemetry-dep:telemetry:1")
                 .addDependency("com.palantir.tracing:tracing:6.17.0")
@@ -199,7 +204,7 @@ class ShadowJarPluginIntegrationSpec {
                 shadeTransitively 'one.util:streamex:0.7.3'
             }
 
-            task extractForAssertions(type: Copy) {
+            tasks.register('extractForAssertions', Copy){
                 dependsOn publishNebulaPublicationToTestRepoRepository
                 from zipTree("%s/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
                 into "$buildDir/extractForAssertions"
@@ -248,7 +253,7 @@ class ShadowJarPluginIntegrationSpec {
                 shadeTransitively 'org.glassfish.jersey.core:jersey-common:3.1.1'
             }
 
-            task extractForAssertions(type: Copy) {
+            tasks.register('extractForAssertions', Copy){
                 dependsOn publishNebulaPublicationToTestRepoRepository
                 from zipTree("%s/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
                 into "$buildDir/extractForAssertions"
@@ -290,7 +295,7 @@ class ShadowJarPluginIntegrationSpec {
                 shadeTransitively 'org.glassfish.jersey.core:jersey-common:3.1.1'
             }
 
-            task extractForAssertions(type: Copy) {
+            tasks.register('extractForAssertions', Copy){
                 dependsOn publishNebulaPublicationToTestRepoRepository
                 from zipTree("%s/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
                 into "$buildDir/extractForAssertions"
@@ -323,7 +328,7 @@ class ShadowJarPluginIntegrationSpec {
 
     @Test
     void should_shade_known_logging_implementations_iff_it_is_placed_in_shadeTransitively_directly(
-            GradleInvoker gradle, RootProject project, MavenRepo repo) throws IOException {
+            GradleInvoker gradle, RootProject project, MavenRepo repo) {
         repo.publish(MavenArtifact.builder()
                 .coordinate("dep-that-depends-on:slf4j-log4j12:1")
                 .addDependency("org.slf4j:slf4j-log4j12:1.7.30")
@@ -360,8 +365,7 @@ class ShadowJarPluginIntegrationSpec {
     }
 
     @Test
-    void should_not_shade_runtimeOnly_dependencies(GradleInvoker gradle, RootProject project, MavenRepo repo)
-            throws IOException {
+    void should_not_shade_runtimeOnly_dependencies(GradleInvoker gradle, RootProject project, MavenRepo repo) {
         repo.publish(MavenArtifact.builder()
                 .coordinate("depends-on:api-guardian:1")
                 .addDependency("org.apiguardian:apiguardian-api:1.1.0")
@@ -390,8 +394,7 @@ class ShadowJarPluginIntegrationSpec {
     }
 
     @Test
-    void root_level_module_info_java_should_not_break_stuff(GradleInvoker gradle, RootProject project)
-            throws IOException {
+    void root_level_module_info_java_should_not_break_stuff(GradleInvoker gradle, RootProject project) {
         project.buildGradle().append("""
             dependencies {
                 // This contains a root level module-info.class
@@ -408,8 +411,7 @@ class ShadowJarPluginIntegrationSpec {
     }
 
     @Test
-    void shadeTransitively_should_be_available_to_test_source_sets(GradleInvoker gradle, RootProject project)
-            throws IOException {
+    void shadeTransitively_should_be_available_to_test_source_sets(GradleInvoker gradle, RootProject project) {
         project.buildGradle().append("""
             testSets {
                 integrationTest
@@ -472,7 +474,7 @@ class ShadowJarPluginIntegrationSpec {
 
     @Test
     void the_jar_task_should_produce_a_jar_with_a_classifier_of_thin_to_not_clash_with_shadowJar(
-            GradleInvoker gradle, RootProject project) throws IOException {
+            GradleInvoker gradle, RootProject project) {
         project.buildGradle().append("""
             dependencies {
                 implementation 'org.apiguardian:apiguardian-api:1.1.0'
@@ -493,7 +495,7 @@ class ShadowJarPluginIntegrationSpec {
             }
 
             // This replicates what the 'com.palantir.sls-recommended-dependencies' plugin does
-            task addManifestItem {
+            tasks.register('addManifestItem'){
                 doFirst {
                     jar.manifest.attributes('Foo': 'Bar')
                 }
@@ -512,7 +514,7 @@ class ShadowJarPluginIntegrationSpec {
     @Test
     void
             the_right_version_of_a_module_rejected_from_shading_is_used_when_specified_as_a_virtual_platfrom_from_versions_props(
-                    GradleInvoker gradle, RootProject project) throws IOException {
+                    GradleInvoker gradle, RootProject project) {
         // This checks that excluding the `rejectedFromShading` configuration from having versions.props
         // constraint injection does not cause the wrong versions to be used for modules rejected from shading when
         // they are part of a virtual platform. More context for my fear:
@@ -527,7 +529,7 @@ class ShadowJarPluginIntegrationSpec {
                 shadeTransitively 'org.slf4j:slf4j-log4j12:1.7.26'
             }
 
-            task printRuntimeClasspath {
+            tasks.register('printRuntimeClasspath'){
                 doLast {
                     println configurations.runtimeClasspath.incoming.resolutionResult.allDependencies.collect { it }
                 }
@@ -541,7 +543,7 @@ class ShadowJarPluginIntegrationSpec {
     }
 
     @Test
-    void checkUnusedConstraints_runs_correctly(GradleInvoker gradle, RootProject project) throws IOException {
+    void checkUnusedConstraints_runs_correctly(GradleInvoker gradle, RootProject project) {
         project.gradlePropertiesFile().append("""
             ignoreLockFile=true
             """);
@@ -550,27 +552,41 @@ class ShadowJarPluginIntegrationSpec {
         gradle.withArgs("checkUnusedConstraints", "--warning-mode=none").buildsSuccessfully();
     }
 
-    private Set<String> jarEntryNames(RootProject project) throws IOException {
+    private Set<String> jarEntryNames(RootProject project) {
         JarFile shadowJar = shadowJarFile(project);
-        return shadowJar.stream().map(entry -> entry.getName()).collect(Collectors.toSet());
+        return shadowJar.stream().map(ZipEntry::getName).collect(Collectors.toSet());
     }
 
-    private JarFile shadowJarFile(RootProject project) throws IOException {
-        return new JarFile(project.path()
-                .resolve(MAVEN_ROOT + "/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
-                .toFile());
-    }
-
-    private String dependenciesInPom(RootProject project) throws IOException {
-        Path pomFile = project.path().resolve(MAVEN_ROOT + "/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.pom");
-        String pomContent = Files.readString(pomFile);
-        // Extract dependencies section - simplified approach for Java
-        int dependenciesStart = pomContent.indexOf("<dependencies>");
-        int dependenciesEnd = pomContent.indexOf("</dependencies>", dependenciesStart);
-        if (dependenciesStart != -1 && dependenciesEnd != -1) {
-            return pomContent.substring(dependenciesStart, dependenciesEnd + "</dependencies>".length());
+    private JarFile shadowJarFile(RootProject project) {
+        Path jarPath = project.path().resolve(MAVEN_ROOT + "/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar");
+        try {
+            return new JarFile(jarPath.toFile());
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to open shadow jar file: " + jarPath, e);
         }
-        return "";
+    }
+
+    private String dependenciesInPom(RootProject project) {
+        Path pomFile = project.path().resolve(MAVEN_ROOT + "/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.pom");
+        XmlMapper xmlMapper = XmlMapper.builder().defaultUseWrapper(false).build();
+
+        PomProject pom;
+        try {
+            pom = xmlMapper.readValue(pomFile.toFile(), PomProject.class);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to parse POM file: " + pomFile, e);
+        }
+
+        return pom.dependencies.dependency.stream()
+                .map(dep -> {
+                    try {
+                        return xmlMapper.writeValueAsString(dep);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(
+                                "Failed to serialize dependency: " + dep.groupId + ":" + dep.artifactId, e);
+                    }
+                })
+                .collect(Collectors.joining("\n"));
     }
 
     private String relocatedClass(String clazz) {
@@ -586,5 +602,26 @@ class ShadowJarPluginIntegrationSpec {
                 }
             }
             """);
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    static class PomProject {
+        @JacksonXmlProperty(localName = "dependencies")
+        public Dependencies dependencies = new Dependencies();
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    static class Dependencies {
+        @JacksonXmlElementWrapper(useWrapping = false)
+        @JacksonXmlProperty(localName = "dependency")
+        public List<Dependency> dependency = Collections.emptyList();
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    static class Dependency {
+        public String groupId;
+        public String artifactId;
+        public String version;
+        public String scope;
     }
 }
