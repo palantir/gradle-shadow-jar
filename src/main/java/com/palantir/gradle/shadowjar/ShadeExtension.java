@@ -17,11 +17,11 @@
 package com.palantir.gradle.shadowjar;
 
 import groovy.lang.Closure;
-import java.util.Optional;
-import java.util.function.Consumer;
+import groovy.lang.DelegatesTo;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ExternalModuleDependency;
+import org.gradle.api.artifacts.dsl.DependencyHandler;
 
 /**
  * Extension that adds the shadeJust() and shadeTransitively() methods to the dependencies block.
@@ -36,50 +36,88 @@ import org.gradle.api.artifacts.ExternalModuleDependency;
  * </pre>
  */
 public record ShadeExtension(
-        Project project,
-        ShadeRegistry registry,
-        String configurationName,
-        Optional<Consumer<Dependency>> postAddCallback,
-        boolean allowCustomFilters) {
+        Project project, ShadeRegistry registry, String configurationName, boolean isShadeTransitively) {
 
     /**
-     * Registers the extension with the project's dependency handler.
-     * This makes the method available in the dependencies {} block.
+     * Shades only the specified direct dependency into the shadow jar.
+     * Transitive dependencies are not shaded by default.
+     *
+     * @param self the DependencyHandler
+     * @param dependencyNotation the dependency notation (e.g., "group:name:version")
+     * @return the created Dependency
      */
-    public static void registerWith(Project project, ShadeRegistry registry, String name, String configurationName) {
-        ShadeExtension extension = new ShadeExtension(project, registry, configurationName, Optional.empty(), true);
-        project.getDependencies().getExtensions().add(name, extension);
+    public static Dependency shadeJust(DependencyHandler self, String dependencyNotation) {
+        ShadeExtension extension = (ShadeExtension) self.getExtensions().getByName("shadeJust");
+        return extension.call(dependencyNotation);
     }
 
     /**
-     * Registers the extension with the project's dependency handler with a post-add callback.
-     * This makes the method available in the dependencies {} block.
+     * Shades only the specified direct dependency into the shadow jar.
+     * Use the closure to configure which transitive dependencies to include.
+     *
+     * <pre>
+     * shadeJust('com.example:library:1.0') {
+     *     withTransitives 'com.google.guava:*', 'com.google.code.*'
+     * }
+     * </pre>
+     *
+     * @param self the DependencyHandler
+     * @param dependencyNotation the dependency notation (e.g., "group:name:version")
+     * @param configureClosure closure to configure ShadeDependencySpec
+     * @return the created Dependency
      */
-    public static void registerWith(
-            Project project,
-            ShadeRegistry registry,
-            String name,
-            String configurationName,
-            Consumer<Dependency> postAddCallback,
-            boolean allowCustomFilters) {
-        ShadeExtension extension = new ShadeExtension(
-                project, registry, configurationName, Optional.of(postAddCallback), allowCustomFilters);
-        // Add as a public extension to DependencyHandler using Groovy convention
-        // The name makes methods on this object callable as dependencies.{name}(...)
-        project.getDependencies().getExtensions().add(name, extension);
+    public static Dependency shadeJust(
+            DependencyHandler self,
+            String dependencyNotation,
+            @DelegatesTo(ShadeDependencySpec.class) Closure<Void> configureClosure) {
+        ShadeExtension extension = (ShadeExtension) self.getExtensions().getByName("shadeJust");
+        return extension.call(dependencyNotation, configureClosure);
     }
 
     /**
-     * Adds a dependency to the configuration without any filter.
-     * Only the direct dependency will be shaded.
+     * Shades the specified dependency and ALL of its transitive dependencies into the shadow jar.
+     *
+     * @param self the DependencyHandler
+     * @param dependencyNotation the dependency notation (e.g., "group:name:version")
+     * @return the created Dependency
+     */
+    public static Dependency shadeTransitively(DependencyHandler self, String dependencyNotation) {
+        ShadeExtension extension = (ShadeExtension) self.getExtensions().getByName("shadeTransitively");
+        return extension.call(dependencyNotation);
+    }
+
+    /**
+     * Registers the shadeJust extension with the project's dependency handler.
+     * This makes the shadeJust() method available in the dependencies {} block.
+     */
+    static void registerJust(Project project, ShadeRegistry registry) {
+        ShadeExtension extension = new ShadeExtension(project, registry, "shaded", false);
+        project.getDependencies().getExtensions().add("shadeJust", extension);
+    }
+
+    /**
+     * Registers the shadeTransitively extension with the project's dependency handler.
+     * This makes the shadeTransitively() method available in the dependencies {} block.
+     * All transitive dependencies are automatically shaded by registering an "always true" filter.
+     */
+    static void registerTransitively(Project project, ShadeRegistry registry) {
+        ShadeExtension extension = new ShadeExtension(project, registry, "shaded", true);
+        project.getDependencies().getExtensions().add("shadeTransitively", extension);
+    }
+
+    /**
+     * Adds a dependency to the configuration.
+     * For shadeJust: only the direct dependency will be shaded.
+     * For shadeTransitively: all transitives will be shaded by registering an "always true" filter.
      *
      * @param dependencyNotation the dependency notation (e.g., "group:name:version")
      * @return the created Dependency
      */
     public Dependency call(String dependencyNotation) {
         Dependency dep = project.getDependencies().add(configurationName, dependencyNotation);
-        if (dep instanceof ExternalModuleDependency) {
-            postAddCallback.ifPresent(callback -> callback.accept(dep));
+        if (isShadeTransitively && dep instanceof ExternalModuleDependency) {
+            // For shadeTransitively, register a filter that matches everything
+            registry.registerFilter(dep, _ignored -> true);
         }
         return dep;
     }
@@ -103,16 +141,18 @@ public record ShadeExtension(
             configureClosure.call(spec);
 
             // Check if a custom filter was provided when it's not allowed
-            if (!allowCustomFilters && spec.getTransitiveFilter().isPresent()) {
-                throw new IllegalArgumentException(
-                        "shadeTransitively() does not support custom transitive filters. All transitives are"
-                                + " automatically shaded. Use shadeJust() if you need to filter transitives.");
+            if (isShadeTransitively) {
+                if (spec.getTransitiveFilter().isPresent()) {
+                    throw new IllegalArgumentException(
+                            "shadeTransitively() does not support custom transitive filters. All transitives are"
+                                    + " automatically shaded. Use shadeJust() if you need to filter transitives.");
+                }
+                // For shadeTransitively, register a filter that matches everything
+                registry.registerFilter(dep, _ignored -> true);
+            } else {
+                // For shadeJust, register the filter if one was configured
+                spec.getTransitiveFilter().ifPresent(filter -> registry.registerFilter(dep, filter));
             }
-
-            // Register the filter if one was configured
-            spec.getTransitiveFilter().ifPresent(filter -> registry.registerFilter(dep, filter));
-
-            postAddCallback.ifPresent(callback -> callback.accept(dep));
         }
 
         return dep;

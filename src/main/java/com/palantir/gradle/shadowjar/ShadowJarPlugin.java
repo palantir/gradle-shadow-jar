@@ -115,14 +115,8 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     conf.setVisible(false);
                 });
 
-        ShadeExtension.registerWith(project, registry, "shadeJust", "shaded");
-        ShadeExtension.registerWith(
-                project,
-                registry,
-                "shadeTransitively",
-                "shaded",
-                dep -> registry.registerFilter(dep, _resolvedDep -> true),
-                false); // disallow custom filters
+        ShadeExtension.registerJust(project, registry);
+        ShadeExtension.registerTransitively(project, registry);
 
         NamedDomainObjectProvider<Configuration> unshaded = project.getConfigurations()
                 .register("unshaded", conf -> {
@@ -215,15 +209,12 @@ public class ShadowJarPlugin implements Plugin<Project> {
             // Find banned libraries and expand to include their children
             Set<ResolvedDependency> rejectedModules = shadedAllModules.stream()
                     .filter(ShadowJarPlugin::isBanned)
-                    .collect(Collectors.collectingAndThen(
-                            Collectors.toSet(),
-                            banned -> {
-                                Set<ResolvedDependency> topLevel =
-                                        Sets.difference(banned, allChildren(banned));
-                                Set<ResolvedDependency> topLevelNotDirect = Sets.filter(
-                                        topLevel, dep -> moduleDoesNotExistDirectlyInConfiguration(shadedConf, dep));
-                                return selfAndAllChildren(topLevelNotDirect);
-                            }));
+                    .collect(Collectors.collectingAndThen(Collectors.toSet(), banned -> {
+                        Set<ResolvedDependency> topLevel = Sets.difference(banned, allChildren(banned));
+                        Set<ResolvedDependency> topLevelNotDirect = Sets.filter(
+                                topLevel, dep -> moduleDoesNotExistDirectlyInConfiguration(shadedConf, dep));
+                        return selfAndAllChildren(topLevelNotDirect);
+                    }));
 
             Set<ResolvedDependency> acceptedModules = Sets.difference(candidateModules, rejectedModules);
 
