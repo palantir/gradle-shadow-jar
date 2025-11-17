@@ -1308,6 +1308,53 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         assert !jarEntryNames.contains('org/apache/log4j/MDC.class')
     }
 
+    def 'shadeJust withTransitives with non-matching glob pattern should only shade the direct dependency'() {
+        when:
+        def mavenRepo = generateMavenRepo(
+                'custom-dep:my-library:1 -> ' +
+                        'com.google.guava:guava:28.2-jre ' +
+                        '| org.apiguardian:apiguardian-api:1.1.0'
+        )
+
+        buildFile << """
+            repositories {
+                maven { url "file:///${mavenRepo.getAbsolutePath()}" }
+            }
+
+            dependencies {
+                // Filter doesn't match any transitives - should behave like shadeJust without filter
+                shadeJust('custom-dep:my-library:1') {
+                    withTransitives 'org.nonexistent:*', 'not even a pattern'
+                }
+            }
+        """.stripIndent(true)
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        def dependenciesText = dependenciesInPom()
+
+        // my-library should NOT be in POM (direct shadeJust dependency)
+        assert !dependenciesText.contains('<artifactId>my-library</artifactId>')
+
+        // All transitives should be in POM since filter didn't match anything
+        assert dependenciesText.contains('<artifactId>guava</artifactId>')
+        assert dependenciesText.contains('<artifactId>apiguardian-api</artifactId>')
+        assert dependenciesText.contains('<artifactId>error_prone_annotations</artifactId>')
+        assert dependenciesText.contains('<artifactId>checker-qual</artifactId>')
+        assert dependenciesText.contains('<artifactId>j2objc-annotations</artifactId>')
+
+        def jarEntryNames = jarEntryNames()
+
+        // No transitive dependencies should be shaded (filter matched nothing)
+        assert !jarEntryNames.contains(relocatedClass('com/google/common/collect/ImmutableList.class'))
+        assert !jarEntryNames.contains('com/google/common/collect/ImmutableList.class')
+        assert !jarEntryNames.contains(relocatedClass('org/apiguardian/api/API.class'))
+        assert !jarEntryNames.contains('org/apiguardian/api/API.class')
+        assert !jarEntryNames.contains(relocatedClass('com/google/errorprone/annotations/DoNotCall.class'))
+        assert !jarEntryNames.contains('com/google/errorprone/annotations/DoNotCall.class')
+    }
+
 
     @CompileStatic
     private Set<String> jarEntryNames() {
