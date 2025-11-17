@@ -28,7 +28,7 @@ org.immutables:value:2.11.6 (1 constraints: 3c05383b)
 
 org.jdom:jdom2:2.0.6.1 (1 constraints: 450ec154)
 
-org.jspecify:jspecify:1.0.0 (8 constraints: dd80fe80)
+org.jspecify:jspecify:1.0.0 (9 constraints: 5391e9da)
 
 org.ow2.asm:asm:9.4 (3 constraints: 0f201057)
 
@@ -128,7 +128,7 @@ de.regnis.q.sequence:sequence-library:1.0.3 (1 constraints: 8f0c0c02)
 
 io.dropwizard.metrics:metrics-core:4.2.37 (1 constraints: ca1057b6)
 
-junit:junit:4.13.2 (1 constraints: 1b0e1d4c)
+junit:junit:4.13.2 (2 constraints: ca1e3ab9)
 
 net.bytebuddy:byte-buddy:1.15.11 (1 constraints: 7f0bc9ea)
 
@@ -146,7 +146,7 @@ org.apache.httpcomponents:httpclient:4.5.2 (1 constraints: 4b0e9550)
 
 org.apache.httpcomponents:httpcore:4.4.4 (1 constraints: 2910c091)
 
-org.apiguardian:apiguardian-api:1.1.2 (6 constraints: 5366ce6e)
+org.apiguardian:apiguardian-api:1.1.2 (7 constraints: cc761de9)
 
 org.assertj:assertj-core:3.27.3 (1 constraints: de1913df)
 
@@ -180,9 +180,11 @@ org.junit.jupiter:junit-jupiter-params:6.0.1 (2 constraints: c22426d7)
 
 org.junit.platform:junit-platform-commons:6.0.1 (2 constraints: d520474a)
 
-org.junit.platform:junit-platform-engine:6.0.1 (3 constraints: 22304b56)
+org.junit.platform:junit-platform-engine:6.0.1 (4 constraints: 9e40c7e2)
 
 org.junit.platform:junit-platform-launcher:6.0.1 (1 constraints: 09050a36)
+
+org.junit.vintage:junit-vintage-engine:6.0.1 (1 constraints: 09050a36)
 
 org.objenesis:objenesis:2.4 (1 constraints: ea0c8c0a)
 

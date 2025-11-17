@@ -25,6 +25,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
+import com.google.common.io.CharStreams;
 import com.palantir.gradle.testing.execution.GradleInvoker;
 import com.palantir.gradle.testing.execution.InvocationResult;
 import com.palantir.gradle.testing.junit.GradlePluginTests;
@@ -32,6 +33,7 @@ import com.palantir.gradle.testing.maven.MavenArtifact;
 import com.palantir.gradle.testing.maven.MavenRepo;
 import com.palantir.gradle.testing.project.RootProject;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -42,7 +44,6 @@ import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
-import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -81,9 +82,8 @@ class ShadowJarPluginIntegrationSpec {
     }
 
     @Test
-    void
-            when_using_shadeTransitively_the_produced_pom_only_has_dependencies_that_arent_directly_included_and_everything_else_is_shaded(
-                    GradleInvoker gradle, RootProject project) throws IOException {
+    void when_using_shadeTransitively_produced_pom_has_only_non_shaded_dependencies(
+            GradleInvoker gradle, RootProject project) throws IOException {
         project.buildGradle().append("""
             dependencies {
                 api 'org.checkerframework:checker-qual:2.10.0'
@@ -116,10 +116,10 @@ class ShadowJarPluginIntegrationSpec {
         assertThat(jarEntryNames).doesNotContain(relocatedClass("org/checkerframework/framework/qual/PolyAll.class"));
 
         JarFile jarFile = shadowJarFile(project);
-        String classFileAsString = IOUtils.toString(
+        String classFileAsString = CharStreams.toString(new InputStreamReader(
                 jarFile.getInputStream(jarFile.getEntry(
                         relocatedClass("com/google/common/util/concurrent/AbstractFuture$Waiter.class"))),
-                StandardCharsets.US_ASCII);
+                StandardCharsets.US_ASCII));
         assertThat(classFileAsString).contains("org/checkerframework/checker/nullness/qual/Nullable");
         assertThat(classFileAsString)
                 .doesNotContain(relocatedClass("org/checkerframework/checker/nullness/qual/Nullable"));
@@ -223,8 +223,10 @@ class ShadowJarPluginIntegrationSpec {
 
         assertThat(jarEntryNames)
                 .contains(
-                        "META-INF/versions/9/shadow/com/palantir/bar_baz_quux/asd_fgh/one/util/streamex/VerSpec.class",
-                        "META-INF/versions/9/shadow/com/palantir/bar_baz_quux/asd_fgh/one/util/streamex/Java9Specific.class");
+                        "META-INF/versions/9/shadow/com/palantir/bar_baz_quux/asd_fgh/"
+                                + "one/util/streamex/VerSpec.class",
+                        "META-INF/versions/9/shadow/com/palantir/bar_baz_quux/asd_fgh/"
+                                + "one/util/streamex/Java9Specific.class");
         assertThat(jarEntryNames)
                 .doesNotContain(
                         "META-INF/versions/9/one/util/streamex/VerSpec.class",
@@ -279,8 +281,8 @@ class ShadowJarPluginIntegrationSpec {
                 .isEqualTo(
                         "shadow.com.palantir.bar_baz_quux.asd_fgh.org.glassfish.jersey.internal.RuntimeDelegateImpl");
         assertThat(jarEntryNames)
-                .contains(
-                        "shadow/com/palantir/bar_baz_quux/asd_fgh/org/glassfish/jersey/internal/RuntimeDelegateImpl.class");
+                .contains("shadow/com/palantir/bar_baz_quux/asd_fgh/"
+                        + "org/glassfish/jersey/internal/RuntimeDelegateImpl.class");
         assertThat(jarEntryNames)
                 .doesNotContain("shadow/com/palantir/bar_baz_quux/asd_fgh/jakarta/ws/rs/ext/RuntimeDelegate.class");
     }
@@ -327,8 +329,8 @@ class ShadowJarPluginIntegrationSpec {
                 .isEqualTo(
                         "shadow.com.palantir.bar_baz_quux.asd_fgh.org.glassfish.jersey.internal.RuntimeDelegateImpl");
         assertThat(jarEntryNames)
-                .contains(
-                        "shadow/com/palantir/bar_baz_quux/asd_fgh/org/glassfish/jersey/internal/RuntimeDelegateImpl.class");
+                .contains("shadow/com/palantir/bar_baz_quux/asd_fgh/"
+                        + "org/glassfish/jersey/internal/RuntimeDelegateImpl.class");
     }
 
     @Test
@@ -517,9 +519,8 @@ class ShadowJarPluginIntegrationSpec {
     }
 
     @Test
-    void
-            the_right_version_of_a_module_rejected_from_shading_is_used_when_specified_as_a_virtual_platfrom_from_versions_props(
-                    GradleInvoker gradle, RootProject project) {
+    void rejected_module_uses_right_version_when_specified_as_virtual_platform_in_versions_props(
+            GradleInvoker gradle, RootProject project) {
         // This checks that excluding the `rejectedFromShading` configuration from having versions.props
         // constraint injection does not cause the wrong versions to be used for modules rejected from shading when
         // they are part of a virtual platform. More context for my fear:

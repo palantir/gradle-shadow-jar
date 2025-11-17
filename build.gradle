@@ -62,6 +62,10 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml'
 
+    testRuntimeOnly 'org.junit.vintage:junit-vintage-engine', {
+        because 'allows JUnit 3 and JUnit 4 tests to run'
+    }
+
     // only to check lib is banned
     testImplementation 'com.palantir.tracing:tracing'
     testImplementation 'com.palantir.safe-logging:safe-logging'
