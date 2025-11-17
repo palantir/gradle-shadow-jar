@@ -22,8 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.palantir.gradle.testing.execution.GradleInvoker;
 import com.palantir.gradle.testing.execution.InvocationResult;
 import com.palantir.gradle.testing.junit.GradlePluginTests;
+import com.palantir.gradle.testing.maven.MavenArtifact;
+import com.palantir.gradle.testing.maven.MavenRepo;
 import com.palantir.gradle.testing.project.RootProject;
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -32,6 +33,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,32 +43,16 @@ class ShadowJarPluginIntegrationSpec {
     private static final String MAVEN_ROOT = "build/repo";
 
     @BeforeEach
-    void setup(RootProject rootProject) throws IOException {
-        rootProject.settingsGradle().append("""
-            rootProject.name = 'asd-fgh'
-            """);
+    void setup(RootProject rootProject) {
+        rootProject.settingsGradle().rootProjectName("asd-fgh");
 
+        rootProject
+                .buildGradle()
+                .plugins()
+                .add("com.palantir.consistent-versions")
+                .add("nebula.maven-nebula-publish")
+                .add("com.palantir.shadow-jar");
         rootProject.buildGradle().append("""
-            buildscript {
-                repositories {
-                    mavenCentral()
-                    maven { url 'https://plugins.gradle.org/m2/' }
-                }
-
-                dependencies {
-                    classpath 'com.palantir.gradle.consistentversions:gradle-consistent-versions:2.24.0'
-                    classpath 'com.netflix.nebula:nebula-publishing-plugin:17.2.1'
-                }
-            }
-
-            plugins {
-                id 'org.unbroken-dome.test-sets' version '4.1.0' apply false
-            }
-
-            apply plugin: 'com.palantir.consistent-versions'
-            apply plugin: 'nebula.maven-nebula-publish'
-            apply plugin: 'com.palantir.shadow-jar'
-
             group = 'com.palantir.bar-baz_quux'
             version = '2'
 
@@ -78,7 +64,7 @@ class ShadowJarPluginIntegrationSpec {
                 repositories {
                     maven {
                         name 'testRepo'
-                        url '${projectDir}/%s'
+                        url "$projectDir/%s"
                     }
                 }
             }
@@ -90,13 +76,13 @@ class ShadowJarPluginIntegrationSpec {
             when_using_shadeTransitively_the_produced_pom_only_has_dependencies_that_arent_directly_included_and_everything_else_is_shaded(
                     GradleInvoker gradle, RootProject project) throws IOException {
         project.buildGradle().append("""
-            apply plugin: 'java-library'
             dependencies {
                 api 'org.checkerframework:checker-qual:2.10.0'
 
                 shadeTransitively 'com.google.guava:guava:28.2-jre'
             }
             """);
+        project.buildGradle().plugins().add("java-library");
 
         gradle.withArgs("publishNebulaPublicationToTestRepoRepository", "--warning-mode=none", "--write-locks")
                 .buildsSuccessfully();
@@ -131,20 +117,20 @@ class ShadowJarPluginIntegrationSpec {
     }
 
     @Test
-    void should_not_shade_known_logging_implementations(GradleInvoker gradle, RootProject project) throws IOException {
-        File mavenRepo =
-                generateMavenRepo(project, "dep-that-depends-on:slf4j-log4j12:1 -> org.slf4j:slf4j-log4j12:1.7.30");
+    void should_not_shade_known_logging_implementations(GradleInvoker gradle, RootProject project, MavenRepo repo)
+            throws IOException {
+        repo.publish(MavenArtifact.builder()
+                .coordinate("dep-that-depends-on:slf4j-log4j12:1")
+                .addDependency("org.slf4j:slf4j-log4j12:1.7.30")
+                .build());
 
+        project.buildGradle().withMavenRepo(repo);
         project.buildGradle().append("""
-            repositories {
-                maven { url "file:///%s" }
-            }
-
             dependencies {
                 // depends on org.slf4j:slf4j-api and log4j:log4j
                 shadeTransitively 'dep-that-depends-on:slf4j-log4j12:1'
             }
-            """, mavenRepo.getAbsolutePath());
+            """);
 
         gradle.withArgs("publishNebulaPublicationToTestRepoRepository", "--warning-mode=none", "--write-locks")
                 .buildsSuccessfully();
@@ -166,24 +152,21 @@ class ShadowJarPluginIntegrationSpec {
     }
 
     @Test
-    void should_not_shade_tritium_tracing_or_safe_logging(GradleInvoker gradle, RootProject project)
+    void should_not_shade_tritium_tracing_or_safe_logging(GradleInvoker gradle, RootProject project, MavenRepo repo)
             throws IOException {
-        File mavenRepo = generateMavenRepo(
-                project,
-                "telemetry-dep:telemetry:1 -> "
-                        + "com.palantir.tracing:tracing:6.17.0 "
-                        + "| com.palantir.safe-logging:safe-logging:3.2.0 "
-                        + "| com.palantir.tritium:tritium-registry:0.63.0");
+        repo.publish(MavenArtifact.builder()
+                .coordinate("telemetry-dep:telemetry:1")
+                .addDependency("com.palantir.tracing:tracing:6.17.0")
+                .addDependency("com.palantir.safe-logging:safe-logging:3.2.0")
+                .addDependency("com.palantir.tritium:tritium-registry:0.63.0")
+                .build());
 
+        project.buildGradle().withMavenRepo(repo);
         project.buildGradle().append("""
-            repositories {
-                maven { url "file:///%s" }
-            }
-
             dependencies {
                 shadeTransitively 'telemetry-dep:telemetry:1'
             }
-            """, mavenRepo.getAbsolutePath());
+            """);
 
         gradle.withArgs("publishNebulaPublicationToTestRepoRepository", "--warning-mode=none", "--write-locks")
                 .buildsSuccessfully();
@@ -228,7 +211,7 @@ class ShadowJarPluginIntegrationSpec {
                 .buildsSuccessfully();
 
         Set<String> jarEntryNames = shadowJarFile(project).stream()
-                .map(entry -> entry.getName())
+                .map(ZipEntry::getName)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
 
         assertThat(jarEntryNames)
@@ -340,15 +323,14 @@ class ShadowJarPluginIntegrationSpec {
 
     @Test
     void should_shade_known_logging_implementations_iff_it_is_placed_in_shadeTransitively_directly(
-            GradleInvoker gradle, RootProject project) throws IOException {
-        File mavenRepo =
-                generateMavenRepo(project, "dep-that-depends-on:slf4j-log4j12:1 -> org.slf4j:slf4j-log4j12:1.7.30");
+            GradleInvoker gradle, RootProject project, MavenRepo repo) throws IOException {
+        repo.publish(MavenArtifact.builder()
+                .coordinate("dep-that-depends-on:slf4j-log4j12:1")
+                .addDependency("org.slf4j:slf4j-log4j12:1.7.30")
+                .build());
 
+        project.buildGradle().withMavenRepo(repo);
         project.buildGradle().append("""
-            repositories {
-                maven { url "file:///%s" }
-            }
-
             dependencies {
                 // depends on org.slf4j:slf4j-api and log4j:log4j
                 shadeTransitively 'dep-that-depends-on:slf4j-log4j12:1'
@@ -356,7 +338,7 @@ class ShadowJarPluginIntegrationSpec {
                 // yes, we really want to do this
                 shadeTransitively 'org.slf4j:slf4j-log4j12:1.7.30'
             }
-            """, mavenRepo.getAbsolutePath());
+            """);
 
         gradle.withArgs("publishNebulaPublicationToTestRepoRepository", "--warning-mode=none", "--write-locks")
                 .buildsSuccessfully();
@@ -378,21 +360,21 @@ class ShadowJarPluginIntegrationSpec {
     }
 
     @Test
-    void should_not_shade_runtimeOnly_dependencies(GradleInvoker gradle, RootProject project) throws IOException {
-        File mavenRepo =
-                generateMavenRepo(project, "depends-on:api-guardian:1 -> org.apiguardian:apiguardian-api:1.1.0");
+    void should_not_shade_runtimeOnly_dependencies(GradleInvoker gradle, RootProject project, MavenRepo repo)
+            throws IOException {
+        repo.publish(MavenArtifact.builder()
+                .coordinate("depends-on:api-guardian:1")
+                .addDependency("org.apiguardian:apiguardian-api:1.1.0")
+                .build());
 
+        project.buildGradle().withMavenRepo(repo);
         project.buildGradle().append("""
-            repositories {
-                maven { url "file:///%s" }
-            }
-
             dependencies {
                 runtimeOnly 'org.apiguardian:apiguardian-api:1.1.0'
 
                 shadeTransitively 'depends-on:api-guardian:1'
             }
-            """, mavenRepo.getAbsolutePath());
+            """);
 
         gradle.withArgs("publishNebulaPublicationToTestRepoRepository", "--warning-mode=none", "--write-locks")
                 .buildsSuccessfully();
@@ -429,8 +411,6 @@ class ShadowJarPluginIntegrationSpec {
     void shadeTransitively_should_be_available_to_test_source_sets(GradleInvoker gradle, RootProject project)
             throws IOException {
         project.buildGradle().append("""
-            apply plugin: 'org.unbroken-dome.test-sets'
-
             testSets {
                 integrationTest
             }
@@ -442,6 +422,7 @@ class ShadowJarPluginIntegrationSpec {
                 integrationTestImplementation 'junit:junit:4.12'
             }
             """);
+        project.buildGradle().plugins().add("org.unbroken-dome.test-sets");
 
         project.mainSourceSet().java().writeClass("""
             package pkg;
@@ -580,16 +561,6 @@ class ShadowJarPluginIntegrationSpec {
                 .toFile());
     }
 
-    private File generateMavenRepo(RootProject project, String... graph) {
-        // Using Nebula's DependencyGraph utilities for test repo generation
-        nebula.test.dependencies.DependencyGraph dependencyGraph = new nebula.test.dependencies.DependencyGraph(graph);
-        nebula.test.dependencies.GradleDependencyGenerator generator =
-                new nebula.test.dependencies.GradleDependencyGenerator(
-                        dependencyGraph,
-                        project.path().resolve("build/testrepogen").toString());
-        return generator.generateTestMavenRepo();
-    }
-
     private String dependenciesInPom(RootProject project) throws IOException {
         Path pomFile = project.path().resolve(MAVEN_ROOT + "/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.pom");
         String pomContent = Files.readString(pomFile);
@@ -606,7 +577,7 @@ class ShadowJarPluginIntegrationSpec {
         return "shadow/com/palantir/bar_baz_quux/asd_fgh/" + clazz;
     }
 
-    private void writeHelloWorld(RootProject project) throws IOException {
+    private void writeHelloWorld(RootProject project) {
         project.mainSourceSet().java().writeClass("""
             package pkg;
             public class HelloWorld {
