@@ -19,6 +19,8 @@ package com.palantir.gradle.shadowjar;
 import static com.palantir.gradle.testing.assertion.GradlePluginTestAssertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.ctc.wstx.stax.WstxInputFactory;
+import com.ctc.wstx.stax.WstxOutputFactory;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
@@ -32,7 +34,6 @@ import com.palantir.gradle.testing.project.RootProject;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -47,6 +48,7 @@ import org.junit.jupiter.api.Test;
 
 @GradlePluginTests
 class ShadowJarPluginIntegrationSpec {
+    private static final XmlMapper MAPPER = new XmlMapper(new WstxInputFactory(), new WstxOutputFactory());
     private static final String MAVEN_ROOT = "build/repo";
 
     @BeforeEach
@@ -232,7 +234,8 @@ class ShadowJarPluginIntegrationSpec {
         assertThat(shadowJar.isMultiRelease())
                 .as(
                         "The jar manifest must include 'Multi-Release: true', but was '%s'",
-                        Files.readString(project.path().resolve("build/extractForAssertions/META-INF/MANIFEST.MF")))
+                        project.file("build/extractForAssertions/META-INF/MANIFEST.MF")
+                                .text())
                 .isTrue();
 
         // What is of interest here is that this does not throw an exception
@@ -265,13 +268,14 @@ class ShadowJarPluginIntegrationSpec {
                 .buildsSuccessfully();
 
         Set<String> jarEntryNames = shadowJarFile(project).stream()
-                .map(entry -> entry.getName())
+                .map(ZipEntry::getName)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
 
         String service = "META-INF/services/jakarta.ws.rs.ext.RuntimeDelegate";
         assertThat(jarEntryNames).contains(service);
-        Path extractedDir = project.path().resolve("build/extractForAssertions");
-        assertThat(Files.readString(extractedDir.resolve(service)))
+        project.file("build/extractForAssertions/" + service)
+                .assertThat()
+                .content()
                 .isEqualTo(
                         "shadow.com.palantir.bar_baz_quux.asd_fgh.org.glassfish.jersey.internal.RuntimeDelegateImpl");
         assertThat(jarEntryNames)
@@ -307,7 +311,7 @@ class ShadowJarPluginIntegrationSpec {
                 .buildsSuccessfully();
 
         Set<String> jarEntryNames = shadowJarFile(project).stream()
-                .map(entry -> entry.getName())
+                .map(ZipEntry::getName)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
 
         String service = "META-INF/services/shadow.com.palantir.bar_baz_quux.asd_fgh.jakarta.ws.rs.ext.RuntimeDelegate";
@@ -317,8 +321,9 @@ class ShadowJarPluginIntegrationSpec {
         assertThat(jarEntryNames)
                 .contains(
                         "META-INF/services/shadow.com.palantir.bar_baz_quux.asd_fgh.jakarta.ws.rs.ext.RuntimeDelegate");
-        Path extractedDir = project.path().resolve("build/extractForAssertions");
-        assertThat(Files.readString(extractedDir.resolve(service)))
+        project.file("build/extractForAssertions/" + service)
+                .assertThat()
+                .content()
                 .isEqualTo(
                         "shadow.com.palantir.bar_baz_quux.asd_fgh.org.glassfish.jersey.internal.RuntimeDelegateImpl");
         assertThat(jarEntryNames)
@@ -483,7 +488,7 @@ class ShadowJarPluginIntegrationSpec {
 
         gradle.withArgs("jar", "--warning-mode=none", "--write-locks").buildsSuccessfully();
 
-        assertThat(project.path().resolve("build/libs/asd-fgh-2-thin.jar")).exists();
+        project.file("build/libs/asd-fgh-2-thin.jar").assertThat().exists();
     }
 
     @Test
@@ -544,9 +549,7 @@ class ShadowJarPluginIntegrationSpec {
 
     @Test
     void checkUnusedConstraints_runs_correctly(GradleInvoker gradle, RootProject project) {
-        project.gradlePropertiesFile().append("""
-            ignoreLockFile=true
-            """);
+        project.gradlePropertiesFile().appendProperty("ignoreLockFile", "true");
         project.file("versions.props").createEmpty();
 
         gradle.withArgs("checkUnusedConstraints", "--warning-mode=none").buildsSuccessfully();
@@ -568,11 +571,10 @@ class ShadowJarPluginIntegrationSpec {
 
     private String dependenciesInPom(RootProject project) {
         Path pomFile = project.path().resolve(MAVEN_ROOT + "/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.pom");
-        XmlMapper xmlMapper = XmlMapper.builder().defaultUseWrapper(false).build();
 
         PomProject pom;
         try {
-            pom = xmlMapper.readValue(pomFile.toFile(), PomProject.class);
+            pom = MAPPER.readValue(pomFile.toFile(), PomProject.class);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to parse POM file: " + pomFile, e);
         }
@@ -580,7 +582,7 @@ class ShadowJarPluginIntegrationSpec {
         return pom.dependencies.dependency.stream()
                 .map(dep -> {
                     try {
-                        return xmlMapper.writeValueAsString(dep);
+                        return MAPPER.writeValueAsString(dep);
                     } catch (IOException e) {
                         throw new UncheckedIOException(
                                 "Failed to serialize dependency: " + dep.groupId + ":" + dep.artifactId, e);
