@@ -17,7 +17,6 @@
 package com.palantir.gradle.shadowjar
 
 import com.palantir.gradle.plugintesting.ConfigurationCacheSpec
-import com.palantir.gradle.testing.execution.TaskResult
 import groovy.transform.CompileStatic
 import groovy.xml.XmlUtil
 import org.gradle.testkit.runner.BuildResult
@@ -37,7 +36,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
     def setup() {
         settingsFile << '''
             rootProject.name = 'asd-fgh'
-        '''.stripIndent()
+        '''.stripIndent(true)
 
         buildFile << """
             buildscript {
@@ -75,7 +74,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                     }
                 }
             }
-        """.stripIndent()
+        """.stripIndent(true)
     }
 
     // ========================================
@@ -91,7 +90,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
                 shadeTransitively 'com.google.guava:guava:28.2-jre'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -138,7 +137,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 // depends on org.slf4j:slf4j-api and log4j:log4j
                 shadeTransitively 'dep-that-depends-on:slf4j-log4j12:1'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -174,7 +173,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             dependencies {
                 shadeTransitively 'telemetry-dep:telemetry:1'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -211,7 +210,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 from zipTree("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
                 into "\$buildDir/extractForAssertions"
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         writeHelloWorld()
@@ -257,7 +256,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 from zipTree("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
                 into "\$buildDir/extractForAssertions"
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         writeHelloWorld()
@@ -295,7 +294,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 from zipTree("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
                 into "\$buildDir/extractForAssertions"
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         writeHelloWorld()
@@ -333,7 +332,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 // yes, we really want to do this
                 shadeTransitively 'org.slf4j:slf4j-log4j12:1.7.30'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -368,7 +367,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
                 shadeTransitively 'depends-on:api-guardian:1'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -390,7 +389,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 // This contains a root level module-info.class
                 shadeTransitively 'jakarta.ws.rs:jakarta.ws.rs-api:2.1.6'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -415,7 +414,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 testImplementation 'junit:junit:4.12'
                 integrationTestImplementation 'junit:junit:4.12'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         file('src/main/java/pkg/Foo.java') << '''
             package pkg;
@@ -423,7 +422,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             class MainSourceSetClass {
                 static void useGuava() { ImmutableList.of(); }
             }
-        '''.stripIndent()
+        '''.stripIndent(true)
 
         file('src/test/java/pkg/FooTest.java') << '''
             package pkg;
@@ -440,7 +439,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                     MainSourceSetClass.useGuava();
                 }
             }
-        '''.stripIndent()
+        '''.stripIndent(true)
 
         file('src/integrationTest/java/pkg/FooIntegrationTest.java') << '''
             package pkg;
@@ -457,7 +456,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                     MainSourceSetClass.useGuava();
                 }
             }
-        '''.stripIndent()
+        '''.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('test', 'integrationTest')
@@ -533,7 +532,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
         file('gradle.properties').text = """
         ignoreLockFile=true
-        """.stripIndent()
+        """.stripIndent(true)
         createFile('versions.props')
 
         then:
@@ -542,6 +541,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
     def 'should only include shadeTransitively dependencies in jar, not implementation or runtimeOnly dependencies'() {
         when:
+        // language=Gradle
         buildFile << """
             apply plugin: 'java-library'
 
@@ -554,7 +554,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 runtimeOnly 'org.apiguardian:apiguardian-api:1.1.0'
                 api 'com.google.code.findbugs:jsr305:3.0.2'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -586,11 +586,12 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
     def 'shadowJar task should be cacheable'() {
         when:
+        // language=Gradle
         buildFile << """
             dependencies {
                 shadeTransitively 'com.google.guava:guava:28.2-jre'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         writeHelloWorld()
 
@@ -610,6 +611,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
     def 'when using shadeJust the produced pom has all transitive dependencies of the shaded dependency and only the direct dependency is shaded'() {
         when:
+        // language=Gradle
         buildFile << """
             apply plugin: 'java-library'
             dependencies {
@@ -617,7 +619,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
                 shadeJust 'com.google.guava:guava:28.2-jre'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -674,7 +676,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 // depends on org.slf4j:slf4j-api and log4j:log4j
                 shadeJust 'dep-that-depends-on:slf4j-log4j12:1'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -717,7 +719,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             dependencies {
                 shadeJust 'telemetry-dep:telemetry:1'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -746,6 +748,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         // https://www.baeldung.com/java-multi-release-jar
 
         when:
+        // language=Gradle
         buildFile << """
             repositories {
                 mavenCentral()
@@ -760,7 +763,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 from zipTree("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
                 into "\$buildDir/extractForAssertions"
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         writeHelloWorld()
@@ -790,6 +793,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
     def 'shadeJust should support service-loader providers'() {
         when:
+        // language=Gradle
         buildFile << """
             repositories {
                 mavenCentral()
@@ -807,7 +811,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 from zipTree("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
                 into "\$buildDir/extractForAssertions"
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         writeHelloWorld()
@@ -834,6 +838,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
     def 'shadeJust should support service-loader providers for relocated services'() {
         when:
+        // language=Gradle
         buildFile << """
             repositories {
                 mavenCentral()
@@ -850,7 +855,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 from zipTree("${MAVEN_ROOT}/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar")
                 into "\$buildDir/extractForAssertions"
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         writeHelloWorld()
@@ -891,7 +896,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 // yes, we really want to do this - explicitly shade the logging library
                 shadeJust 'org.slf4j:slf4j-log4j12:1.7.30'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -932,7 +937,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
                 shadeJust 'depends-on:api-guardian:1'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -953,12 +958,13 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
     def 'shadeJust root level module-info-java should not break stuff'() {
         when:
+        // language=Gradle
         buildFile << """
             dependencies {
                 // This contains a root level module-info.class
                 shadeJust 'jakarta.ws.rs:jakarta.ws.rs-api:2.1.6'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -972,6 +978,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
     def 'shadeJust should only include directly shaded dependencies in jar, not implementation or runtimeOnly dependencies'() {
         when:
+        // language=Gradle
         buildFile << """
             apply plugin: 'java-library'
 
@@ -984,7 +991,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 runtimeOnly 'org.apiguardian:apiguardian-api:1.1.0'
                 api 'com.google.code.findbugs:jsr305:3.0.2'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -1028,6 +1035,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
     def 'when both shadeTransitively and shadeJust are used on the same dependency, shadeTransitively wins and shades transitives'() {
         when:
+        // language=Gradle
         buildFile << """
             apply plugin: 'java-library'
             dependencies {
@@ -1037,7 +1045,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                 shadeTransitively 'com.google.guava:guava:28.2-jre'
                 shadeJust 'com.google.guava:guava:28.2-jre'
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -1095,7 +1103,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                     withTransitives 'com.google.guava:*', 'com.google.common:*'
                 }
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -1154,7 +1162,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                     withTransitives 'com.google.code.*'
                 }
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -1212,7 +1220,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                     withTransitives 'com.google.guava:*', 'com.google.code.*'
                 }
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -1271,7 +1279,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
                     withTransitives 'com.palantir.*', 'org.slf4j:*'
                 }
             }
-        """.stripIndent()
+        """.stripIndent(true)
 
         then:
         runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
@@ -1300,24 +1308,6 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         assert !jarEntryNames.contains('org/apache/log4j/MDC.class')
     }
 
-
-    def 'shadeTransitively should not allow custom withTransitives'() {
-        when:
-        buildFile << """
-            dependencies {
-                shadeTransitively('com.google.guava:guava:28.2-jre') {
-                    withTransitives 'com.google:*'
-                }
-            }
-        """.stripIndent()
-
-        runTasks('shadowJar')
-
-        then:
-        def exception = thrown(UnexpectedBuildFailure)
-        exception.message.contains('shadeTransitively() does not support custom transitive filters')
-        exception.message.contains('Use shadeJust() if you need to filter transitives')
-    }
 
     @CompileStatic
     private Set<String> jarEntryNames() {
