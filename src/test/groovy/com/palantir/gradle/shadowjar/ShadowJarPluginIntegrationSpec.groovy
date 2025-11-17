@@ -1089,13 +1089,10 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             }
 
             dependencies {
-                // Use transitiveFilter to shade com.google.* dependencies
+                // Use withTransitives to shade com.google.* dependencies
                 // guava should be shaded, but its transitives (error_prone, jsr305, etc.) should NOT
                 shadeJust('custom-dep:my-library:1') {
-                    transitiveFilter { dependency ->
-                        dependency.group.startsWith('com.google.guava') ||
-                        dependency.group.startsWith('com.google.common')
-                    }
+                    withTransitives 'com.google.guava:*', 'com.google.common:*'
                 }
             }
         """.stripIndent()
@@ -1108,7 +1105,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         // custom-dep:my-library should NOT be in POM (it's the direct shadeJust dependency)
         assert !dependenciesText.contains('<artifactId>my-library</artifactId>')
 
-        // guava matched by transitiveFilter, should NOT be in POM (shaded)
+        // guava matched by withTransitives, should NOT be in POM (shaded)
         assert !dependenciesText.contains('<artifactId>guava</artifactId>')
 
         // guava's transitives should be in POM (not matched by filter, so unshaded)
@@ -1136,7 +1133,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         assert !jarEntryNames.contains('org/apiguardian/api/API.class')
     }
 
-    def 'shadeJust transitiveFilter should shade matching dependencies at any depth, but not their transitives'() {
+    def 'shadeJust withTransitives should shade matching dependencies at any depth, but not their transitives'() {
         when:
         def mavenRepo = generateMavenRepo(
                 'com.example:myapp:1 -> ' +
@@ -1150,13 +1147,11 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             }
 
             dependencies {
-                // Use transitiveFilter to only shade gson, not guava
+                // Use withTransitives to only shade gson, not guava
                 // gson should be shaded (matched by filter)
                 // guava should NOT be shaded (not matched by filter)
                 shadeJust('com.example:myapp:1') {
-                    transitiveFilter { dependency ->
-                        dependency.group.startsWith('com.google.code.')
-                    }
+                    withTransitives 'com.google.code.*'
                 }
             }
         """.stripIndent()
@@ -1197,7 +1192,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         assert !jarEntryNames.contains('com/google/j2objc/annotations/Property.class')
     }
 
-    def 'shadeJust with multiple transitiveFilters should shade all matching dependencies'() {
+    def 'shadeJust with multiple withTransitives patterns should shade all matching dependencies'() {
         when:
         def mavenRepo = generateMavenRepo(
                 'custom-dep:my-library:1 -> ' +
@@ -1214,10 +1209,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             dependencies {
                 // Multiple filter conditions to match both guava and gson
                 shadeJust('custom-dep:my-library:1') {
-                    transitiveFilter { dependency ->
-                        dependency.group.startsWith('com.google.guava') ||
-                        dependency.group.startsWith('com.google.code.')
-                    }
+                    withTransitives 'com.google.guava:*', 'com.google.code.*'
                 }
             }
         """.stripIndent()
@@ -1259,7 +1251,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         assert !jarEntryNames.contains('org/apiguardian/api/API.class')
     }
 
-    def 'shadeJust transitiveFilter with banned library - banned library rejection should still apply'() {
+    def 'shadeJust withTransitives with banned library - banned library rejection should still apply'() {
         when:
         def mavenRepo = generateMavenRepo(
                 'custom-dep:my-library:1 -> ' +
@@ -1276,10 +1268,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
             dependencies {
                 // Filter should match slf4j, but it should STILL be rejected (banned library wins)
                 shadeJust('custom-dep:my-library:1') {
-                    transitiveFilter { dependency ->
-                        dependency.group.startsWith('com.palantir.') ||
-                        dependency.group.startsWith('org.slf4j')
-                    }
+                    withTransitives 'com.palantir.*', 'org.slf4j:*'
                 }
             }
         """.stripIndent()
@@ -1312,14 +1301,12 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
     }
 
 
-    def 'shadeTransitively should not allow custom transitiveFilter'() {
+    def 'shadeTransitively should not allow custom withTransitives'() {
         when:
         buildFile << """
             dependencies {
                 shadeTransitively('com.google.guava:guava:28.2-jre') {
-                    transitiveFilter { dependency ->
-                        dependency.group.startsWith('com.google')
-                    }
+                    withTransitives 'com.google:*'
                 }
             }
         """.stripIndent()
@@ -1328,7 +1315,7 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
 
         then:
         def exception = thrown(UnexpectedBuildFailure)
-        exception.message.contains('shadeTransitively() does not support custom transitiveFilter')
+        exception.message.contains('shadeTransitively() does not support custom transitive filters')
         exception.message.contains('Use shadeJust() if you need to filter transitives')
     }
 

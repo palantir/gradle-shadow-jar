@@ -24,7 +24,7 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ResolvedDependency;
 
 /**
- * Registry that tracks which shadeJust dependencies have transitiveFilters configured.
+ * Registry that tracks which shadeJust dependencies have transitive filters configured.
  * This allows the shadowing logic to determine which transitive dependencies should be shaded.
  */
 public final class ShadeRegistry {

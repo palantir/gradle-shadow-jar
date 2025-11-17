@@ -16,9 +16,11 @@
 
 package com.palantir.gradle.shadowjar;
 
-import groovy.lang.Closure;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import org.gradle.api.artifacts.ResolvedDependency;
 
 /**
@@ -30,19 +32,47 @@ public final class ShadeDependencySpec {
     private Optional<Predicate<ResolvedDependency>> transitiveFilter = Optional.empty();
 
     /**
-     * Configures a filter to selectively shade transitive dependencies.
-     * By default, shadeJust only shades the direct dependency. With transitiveFilter,
-     * you can also shade transitives that match the given predicate.
+     * Simplified API for including transitive dependencies that match the given glob patterns.
+     * Patterns are matched against the dependency's full coordinate string (group:artifact:version).
+     * Use * as a wildcard to match any characters.
      *
-     * @param closure a closure that receives a DependencyInfo and returns true to shade it
+     * <p>Example:
+     * <pre>
+     * shadeJust('custom-dep:my-library:1') {
+     *     withTransitives 'com.google.guava:*:*', 'com.google.common*'
+     * }
+     * </pre>
+     *
+     * @param patterns glob patterns to match against dependency coordinates (group:artifact:version)
      */
-    public void transitiveFilter(Closure<Boolean> closure) {
+    public void withTransitives(String... patterns) {
+        List<Pattern> compiledPatterns =
+                Arrays.stream(patterns).map(ShadeDependencySpec::compileGlob).toList();
+
         this.transitiveFilter = Optional.of(dep -> {
-            DependencyInfo info = new DependencyInfo(dep);
-            closure.setDelegate(info);
-            closure.setResolveStrategy(Closure.DELEGATE_FIRST);
-            return closure.call(info);
+            String coordinate = dep.getModuleGroup() + ":" + dep.getModuleName() + ":" + dep.getModuleVersion();
+            return compiledPatterns.stream()
+                    .anyMatch(pattern -> pattern.matcher(coordinate).matches());
         });
+    }
+
+    /**
+     * Converts a glob pattern to a compiled regex Pattern.
+     */
+    private static Pattern compileGlob(String glob) {
+        StringBuilder patternBuilder = new StringBuilder();
+        boolean first = true;
+
+        for (String token : glob.split("\\*", -1)) {
+            if (first) {
+                first = false;
+            } else {
+                patternBuilder.append(".*?");
+            }
+            patternBuilder.append(Pattern.quote(token));
+        }
+
+        return Pattern.compile(patternBuilder.toString());
     }
 
     /**

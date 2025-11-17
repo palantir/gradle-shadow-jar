@@ -29,9 +29,7 @@ import org.gradle.api.artifacts.ExternalModuleDependency;
  * <pre>
  * dependencies {
  *     shadeJust('com.example:library:1.0') {
- *         transitiveFilter { dependency ->
- *             dependency.group.startsWith('com.internal.')
- *         }
+ *         withTransitives 'com.internal.*'
  *     }
  *     shadeTransitively('com.example:library:1.0')
  * }
@@ -108,7 +106,7 @@ public record ShadeExtension(
             // Check if a custom filter was provided when it's not allowed
             if (!allowCustomFilters && spec.getTransitiveFilter().isPresent()) {
                 throw new IllegalArgumentException(
-                        "shadeTransitively() does not support custom transitiveFilter. All transitives are"
+                        "shadeTransitively() does not support custom transitive filters. All transitives are"
                                 + " automatically shaded. Use shadeJust() if you need to filter transitives.");
             }
 
