@@ -115,8 +115,8 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     conf.setVisible(false);
                 });
 
-        ShadeExtension.registerJust(project, registry);
-        ShadeExtension.registerTransitively(project, registry);
+        ShadeJustExtension.register(project, registry);
+        ShadeTransitivelyExtension.register(project, registry);
 
         NamedDomainObjectProvider<Configuration> unshaded = project.getConfigurations()
                 .register("unshaded", conf -> {

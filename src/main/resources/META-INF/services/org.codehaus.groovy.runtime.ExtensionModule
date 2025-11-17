@@ -16,4 +16,4 @@
 
 moduleName=gradle-shadow-jar-extensions
 moduleVersion=1.0
-extensionClasses=com.palantir.gradle.shadowjar.ShadeExtension
+extensionClasses=com.palantir.gradle.shadowjar.ShadeJustExtension,com.palantir.gradle.shadowjar.ShadeTransitivelyExtension
