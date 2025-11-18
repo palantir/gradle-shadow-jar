@@ -613,14 +613,14 @@ class ShadowJarPluginIntegrationSpec {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record PomProject(
+    private record PomProject(
             @JacksonXmlProperty(localName = "dependencies") Dependencies dependencies) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Dependencies(
+    private record Dependencies(
             @JacksonXmlElementWrapper(useWrapping = false) @JacksonXmlProperty(localName = "dependency")
             List<Dependency> dependency) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Dependency(String artifactId) {}
+    private record Dependency(String artifactId) {}
 }
