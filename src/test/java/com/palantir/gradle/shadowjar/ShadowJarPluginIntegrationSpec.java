@@ -40,6 +40,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
@@ -580,13 +581,17 @@ class ShadowJarPluginIntegrationSpec {
             throw new UncheckedIOException("Failed to parse POM file: " + pomFile, e);
         }
 
-        return pom.dependencies.dependency.stream()
+        List<Dependency> deps = Optional.ofNullable(pom)
+                .map(PomProject::dependencies)
+                .map(Dependencies::dependency)
+                .orElseGet(Collections::emptyList);
+
+        return deps.stream()
                 .map(dep -> {
                     try {
                         return MAPPER.writeValueAsString(dep);
                     } catch (IOException e) {
-                        throw new UncheckedIOException(
-                                "Failed to serialize dependency: " + dep.groupId + ":" + dep.artifactId, e);
+                        throw new UncheckedIOException("Failed to serialize dependency: " + dep.artifactId(), e);
                     }
                 })
                 .collect(Collectors.joining("\n"));
@@ -608,23 +613,14 @@ class ShadowJarPluginIntegrationSpec {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    static class PomProject {
-        @JacksonXmlProperty(localName = "dependencies")
-        public Dependencies dependencies = new Dependencies();
-    }
+    public record PomProject(
+            @JacksonXmlProperty(localName = "dependencies") Dependencies dependencies) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    static class Dependencies {
-        @JacksonXmlElementWrapper(useWrapping = false)
-        @JacksonXmlProperty(localName = "dependency")
-        public List<Dependency> dependency = Collections.emptyList();
-    }
+    public record Dependencies(
+            @JacksonXmlElementWrapper(useWrapping = false) @JacksonXmlProperty(localName = "dependency")
+            List<Dependency> dependency) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    static class Dependency {
-        public String groupId;
-        public String artifactId;
-        public String version;
-        public String scope;
-    }
+    public record Dependency(String artifactId) {}
 }
