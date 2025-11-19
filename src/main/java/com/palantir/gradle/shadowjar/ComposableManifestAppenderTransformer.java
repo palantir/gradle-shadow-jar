@@ -88,9 +88,9 @@ public final class ComposableManifestAppenderTransformer implements ResourceTran
 
             if (!attributes.isEmpty()) {
                 for (Attribute attribute : attributes) {
-                    os.write(attribute.name.getBytes(StandardCharsets.UTF_8));
+                    os.write(attribute.name().getBytes(StandardCharsets.UTF_8));
                     os.write(SEPARATOR);
-                    os.write(attribute.value.toString().getBytes(StandardCharsets.UTF_8));
+                    os.write(attribute.value().toString().getBytes(StandardCharsets.UTF_8));
                     os.write(EOL);
                 }
                 os.write(EOL);
