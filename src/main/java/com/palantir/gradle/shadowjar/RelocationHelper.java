@@ -42,7 +42,6 @@ public final class RelocationHelper {
     // Multi-Release JAR Files are defined in https://openjdk.java.net/jeps/238
     private static final Pattern MULTIRELEASE_JAR_PREFIX = Pattern.compile("^META-INF/versions/\\d+/");
 
-    /** Scan jars and return all paths found within them */
     public static Set<String> scanJarsForPaths(FileCollection jars) {
         return jars.getFiles().stream()
                 .flatMap(jar -> {
@@ -62,7 +61,6 @@ public final class RelocationHelper {
                 .collect(Collectors.toSet());
     }
 
-    /** Compute the set of paths that should be relocated */
     public static Set<String> computeRelocatablePaths(Set<String> pathsInJars) {
         // The Relocator is responsible for fixing the bytecode at callsites *and* filenames of .class files,
         // so we have to account for things _calling_ these weird multi-release classes.
@@ -76,13 +74,11 @@ public final class RelocationHelper {
                 .collect(Collectors.toSet());
     }
 
-    /** Check if any of the paths indicate a multi-release JAR */
     public static boolean hasMultiRelease(Set<String> pathsInJars) {
         return pathsInJars.stream()
                 .anyMatch(path -> MULTIRELEASE_JAR_PREFIX.matcher(path).find());
     }
 
-    /** Returns a pair of 'META-INF/versions/9/' and 'com/foo/whatever.class'. */
     static List<String> splitMultiReleasePath(String input) {
         Matcher matcher = MULTIRELEASE_JAR_PREFIX.matcher(input);
         if (matcher.find()) {

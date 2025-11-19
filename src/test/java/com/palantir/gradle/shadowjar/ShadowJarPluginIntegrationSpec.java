@@ -28,6 +28,7 @@ import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import com.google.common.io.CharStreams;
 import com.palantir.gradle.testing.execution.GradleInvoker;
 import com.palantir.gradle.testing.execution.InvocationResult;
+import com.palantir.gradle.testing.execution.TaskOutcome;
 import com.palantir.gradle.testing.junit.GradlePluginTests;
 import com.palantir.gradle.testing.maven.MavenArtifact;
 import com.palantir.gradle.testing.maven.MavenRepo;
@@ -582,6 +583,25 @@ class ShadowJarPluginIntegrationSpec {
         // jsr305 is declared as api, so it should NOT be in the jar (even though it's also a transitive of guava)
         assertThat(jarEntryNames).doesNotContain("javax/annotation/Nullable.class");
         assertThat(jarEntryNames).doesNotContain(relocatedClass("javax/annotation/Nullable.class"));
+    }
+
+    @Test
+    void shadowJar_task_should_be_cacheable(GradleInvoker gradle, RootProject project) {
+        project.buildGradle().append("""
+            dependencies {
+                shadeTransitively 'com.google.guava:guava:28.2-jre'
+            }
+            """);
+
+        writeHelloWorld(project);
+
+        // First run with build cache enabled
+        runTasksAndCheckSuccess(gradle, "--build-cache", "shadowJar");
+
+        // Clean and run again - shadowJar should be loaded from cache
+        InvocationResult rerun = runTasksAndCheckSuccess(gradle, "--build-cache", "clean", "shadowJar");
+
+        assertThat(rerun).task(":shadowJar").outcome().isEqualTo(TaskOutcome.FROM_CACHE);
     }
 
     private Set<String> jarEntryNames(RootProject project) {
