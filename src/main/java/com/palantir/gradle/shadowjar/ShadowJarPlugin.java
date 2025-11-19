@@ -22,7 +22,7 @@ import com.github.jengelman.gradle.plugins.shadow.internal.DefaultDependencyFilt
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import java.util.List;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -183,7 +183,50 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     conf.extendsFrom(shaded.get()); // For compilation/runtime access
                 })));
 
-        Provider<ShadowingCalculation> shadowingCalculation = shaded.zip(unshaded, (shadedConf, unshadedConf) -> {
+        Provider<ShadowingCalculation> calculations = shadowingCalculation(shaded, unshaded, registry);
+
+        rejectedFromShading.configure(conf -> conf.getDependencies()
+                .addAllLater(project.getObjects()
+                        .setProperty(Dependency.class)
+                        .value(calculations.map(calc -> calc.pomDependencies().stream()
+                                .map(this::depToString)
+                                .map(project.getDependencies()::create)
+                                .collect(Collectors.toSet())))));
+
+        shadowJarProvider.configure(shadowJar -> {
+            shadowJar.getConfigurations().set(shaded.map(Collections::singletonList));
+
+            shadowJar.getDependencyFilter().set(calculations.map(calc -> {
+                DefaultDependencyFilter filter = new DefaultDependencyFilter(project);
+                filter.include(calc.acceptedShadedModules()::contains);
+                return filter;
+            }));
+
+            String prefix = String.join(".", "shadow", project.getGroup().toString(), project.getName())
+                    .replace('-', '_')
+                    .toLowerCase(Locale.US);
+
+            Provider<FileCollection> includedDepsProvider = project.provider(shadowJar::getIncludedDependencies);
+
+            Provider<Set<String>> pathsInJars = includedDepsProvider.map(RelocationHelper::scanJarsForPaths);
+
+            Provider<Set<String>> relocatablePaths = pathsInJars.map(RelocationHelper::computeRelocatablePaths);
+
+            Provider<Boolean> hasMultiRelease = pathsInJars.map(RelocationHelper::hasMultiRelease);
+
+            shadowJar.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
+
+            shadowJar.getRelocators().add(new JarFilesRelocator(relocatablePaths, prefix + "."));
+
+            shadowJar.getTransformers().add(new ConditionalMultiReleaseTransformer(hasMultiRelease));
+        });
+    }
+
+    private Provider<ShadowingCalculation> shadowingCalculation(
+            NamedDomainObjectProvider<Configuration> shaded,
+            NamedDomainObjectProvider<Configuration> unshaded,
+            ShadeRegistry registry) {
+        return shaded.zip(unshaded, (shadedConf, unshadedConf) -> {
             Set<ResolvedDependency> shadedDirectModules =
                     shadedConf.getResolvedConfiguration().getFirstLevelModuleDependencies();
 
@@ -242,42 +285,6 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     .acceptedShadedModules(acceptedModules)
                     .pomDependencies(pomDependencies)
                     .build();
-        });
-
-        rejectedFromShading.configure(conf -> conf.getDependencies()
-                .addAllLater(project.getObjects()
-                        .setProperty(Dependency.class)
-                        .value(shadowingCalculation.map(calc -> calc.pomDependencies().stream()
-                                .map(this::depToString)
-                                .map(project.getDependencies()::create)
-                                .collect(Collectors.toSet())))));
-
-        shadowJarProvider.configure(shadowJar -> {
-            shadowJar.getConfigurations().set(project.provider(() -> List.of(shaded.get())));
-
-            shadowJar.getDependencyFilter().set(shadowingCalculation.map(calc -> {
-                DefaultDependencyFilter filter = new DefaultDependencyFilter(project);
-                filter.include(calc.acceptedShadedModules()::contains);
-                return filter;
-            }));
-
-            String prefix = String.join(".", "shadow", project.getGroup().toString(), project.getName())
-                    .replace('-', '_')
-                    .toLowerCase(Locale.US);
-
-            Provider<FileCollection> includedDepsProvider = project.provider(shadowJar::getIncludedDependencies);
-
-            Provider<Set<String>> pathsInJars = includedDepsProvider.map(RelocationHelper::scanJarsForPaths);
-
-            Provider<Set<String>> relocatablePaths = pathsInJars.map(RelocationHelper::computeRelocatablePaths);
-
-            Provider<Boolean> hasMultiRelease = pathsInJars.map(RelocationHelper::hasMultiRelease);
-
-            shadowJar.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
-
-            shadowJar.getRelocators().add(new JarFilesRelocator(relocatablePaths, prefix + "."));
-
-            shadowJar.getTransformers().add(new ConditionalMultiReleaseTransformer(hasMultiRelease));
         });
     }
 
