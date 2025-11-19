@@ -39,7 +39,6 @@ import org.gradle.api.artifacts.ResolvedDependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.SetProperty;
-import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.TaskAction;
@@ -79,11 +78,6 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
         return prefix;
     }
 
-    @Classpath
-    public final List<FileCollection> getConfigurations() {
-        return shadowJarProperty.get().getConfigurations();
-    }
-
     @Input
     public final SetProperty<ResolvedDependency> getAcceptedDependencies() {
         return acceptedDependencies;
@@ -93,9 +87,12 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
     public final void run() {
         ShadowJar shadowJarTask = shadowJarProperty.get();
 
-        shadowJarTask.getDependencyFilter().include(acceptedDependencies.get()::contains);
+        shadowJarTask.getDependencyFilter().get().include(acceptedDependencies.get()::contains);
 
-        FileCollection jars = shadowJarTask.getDependencyFilter().resolve(getConfigurations());
+        FileCollection jars = shadowJarTask
+                .getDependencyFilter()
+                .get()
+                .resolve(shadowJarTask.getConfigurations().get());
 
         Set<String> pathsInJars = jars.getFiles().stream()
                 .flatMap(jar -> {
@@ -106,7 +103,7 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                                 .peek(path -> log.debug("Jar '{}' contains entry '{}'", jar.getName(), path))
                                 .peek(path -> Preconditions.checkState(
                                         !path.startsWith("/"), "Unexpected absolute path '%s' in jar '%s'", path, jar))
-                                .collect(Collectors.toList())
+                                .toList()
                                 .stream();
                     } catch (IOException e) {
                         throw new UncheckedIOException("Could not open jar file", e);
@@ -128,14 +125,10 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
         shadowJarTask.relocate(new JarFilesRelocator(relocatable, prefix.get() + "."));
 
         if (!multiReleaseStuff.isEmpty()) {
-            try {
-                shadowJarTask.transform(ComposableManifestAppenderTransformer.class, transformer -> {
-                    // JEP 238 requires this manifest entry
-                    transformer.append("Multi-Release", true);
-                });
-            } catch (ReflectiveOperationException e) {
-                throw new RuntimeException("Unable to construct ManifestAppenderTransformer", e);
-            }
+            shadowJarTask.transform(ComposableManifestAppenderTransformer.class, transformer -> {
+                // JEP 238 requires this manifest entry
+                transformer.append("Multi-Release", true);
+            });
         }
     }
 
@@ -167,7 +160,7 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
         public String relocatePath(RelocatePathContext context) {
             List<String> maybePair = splitMultiReleasePath(context.getPath());
             if (!maybePair.isEmpty()) {
-                return relocateMultiReleasePath(maybePair, context);
+                return relocateMultiReleasePath(maybePair);
             }
 
             String output = super.relocatePath(context);
@@ -175,10 +168,10 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
             return output;
         }
 
-        private String relocateMultiReleasePath(List<String> pair, RelocatePathContext context) {
-            context.setPath(pair.get(1));
-            String out = pair.get(0) + super.relocatePath(context);
-            log.debug("relocateMultiReleasePath('{}') -> {}", context.getPath(), out);
+        private String relocateMultiReleasePath(List<String> pair) {
+            RelocatePathContext pathWithoutPrefix = new RelocatePathContext(pair.get(1));
+            String out = pair.get(0) + super.relocatePath(pathWithoutPrefix);
+            log.debug("relocateMultiReleasePath('{}') -> {}", pathWithoutPrefix.getPath(), out);
             return out;
         }
 
@@ -191,12 +184,9 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
             // prior to 'META-INF', breaking service loading. The default SimpleRelocator
             // replaces the first instance of the expected prefix with the new prefix,
             // however this is problematic when the expected prefix is an empty string.
-            if (className != null && className.startsWith(SERVICE_PROVIDER_PREFIX)) {
+            if (className.startsWith(SERVICE_PROVIDER_PREFIX)) {
                 String targetClassName = className.substring(SERVICE_PROVIDER_PREFIX.length());
-                RelocateClassContext serviceContext = RelocateClassContext.builder()
-                        .className(targetClassName)
-                        .stats(context.getStats())
-                        .build();
+                RelocateClassContext serviceContext = new RelocateClassContext(targetClassName);
                 output = SERVICE_PROVIDER_PREFIX + super.relocateClass(serviceContext);
             } else {
                 output = super.relocateClass(context);

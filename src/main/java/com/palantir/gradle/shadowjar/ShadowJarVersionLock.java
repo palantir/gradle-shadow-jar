@@ -18,18 +18,20 @@ package com.palantir.gradle.shadowjar;
 
 import com.palantir.gradle.versions.VersionRecommendationsExtension;
 import com.palantir.gradle.versions.VersionsLockExtension;
+import org.gradle.api.NamedDomainObjectProvider;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 
 public final class ShadowJarVersionLock {
     private ShadowJarVersionLock() {}
 
-    public static void lockConfiguration(Project project, Configuration configuration) {
+    public static void lockConfiguration(Project project, NamedDomainObjectProvider<Configuration> configuration) {
         VersionsLockExtension versionsLock = project.getExtensions().getByType(VersionsLockExtension.class);
         versionsLock.production(scope -> scope.from(configuration.getName()));
     }
 
-    public static void excludeConfigurationFromVersionsPropsInjection(Project project, Configuration configuration) {
+    public static void excludeConfigurationFromVersionsPropsInjection(
+            Project project, NamedDomainObjectProvider<Configuration> configuration) {
         VersionRecommendationsExtension versionRecommendations =
                 project.getRootProject().getExtensions().getByType(VersionRecommendationsExtension.class);
         versionRecommendations.excludeConfigurations(configuration.getName());

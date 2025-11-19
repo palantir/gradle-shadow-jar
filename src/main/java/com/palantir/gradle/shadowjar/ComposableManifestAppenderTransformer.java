@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2020 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2025 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,24 +16,31 @@
 
 package com.palantir.gradle.shadowjar;
 
-import com.github.jengelman.gradle.plugins.shadow.transformers.Transformer;
+import com.github.jengelman.gradle.plugins.shadow.transformers.ResourceTransformer;
 import com.github.jengelman.gradle.plugins.shadow.transformers.TransformerContext;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.Serializable;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.jar.JarFile;
 import org.apache.tools.zip.ZipEntry;
 import org.apache.tools.zip.ZipOutputStream;
-import org.codehaus.plexus.util.IOUtil;
 import org.gradle.api.file.FileTreeElement;
 import org.gradle.api.tasks.Input;
 
-// Originally taken from https://github.com/johnrengelman/shadow/blob/6.1.0/src/main/groovy/com/github/jengelman/
-// gradle/plugins/shadow/transformers/ManifestAppenderTransformer.groovy
-public final class ComposableManifestAppenderTransformer implements Transformer {
+// Originally taken from
+// https://github.com/GradleUp/shadow/blob/9.2.2/src/main/kotlin/com/github/jengelman/gradle/plugins/shadow/transformers/ManifestAppenderTransformer.kt
+public final class ComposableManifestAppenderTransformer implements ResourceTransformer {
     private static final byte[] EOL = "\r\n".getBytes(StandardCharsets.UTF_8);
     private static final byte[] SEPARATOR = ": ".getBytes(StandardCharsets.UTF_8);
+
+    public static final long CONSTANT_TIME_FOR_ZIP_ENTRIES =
+            new GregorianCalendar(1980, Calendar.FEBRUARY, 1, 0, 0, 0).getTimeInMillis();
 
     private byte[] manifestContents = new byte[0];
     private final List<Attribute> attributes = new ArrayList<>();
@@ -56,17 +63,12 @@ public final class ComposableManifestAppenderTransformer implements Transformer 
     @Override
     public void transform(TransformerContext context) {
         if (manifestContents.length == 0) {
-            try {
-                manifestContents = IOUtil.toByteArray(context.getIs());
-                context.getIs().close();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+            try (InputStream is = context.getInputStream()) {
+                manifestContents = is.readAllBytes();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to read manifest from " + context.getPath(), e);
             }
         }
-    }
-
-    public String getName() {
-        return ComposableManifestAppenderTransformer.class.getName();
     }
 
     @Override
@@ -77,8 +79,8 @@ public final class ComposableManifestAppenderTransformer implements Transformer 
     @Override
     public void modifyOutputStream(ZipOutputStream os, boolean preserveFileTimestamps) {
         try {
-            ZipEntry entry = new ZipEntry(JarFile.MANIFEST_NAME);
-            entry.setTime(TransformerContext.getEntryTimestamp(preserveFileTimestamps, entry.getTime()));
+            ZipEntry entry = zipEntry(JarFile.MANIFEST_NAME, preserveFileTimestamps);
+
             os.putNextEntry(entry);
             // Change: Trim existing file contents and add a single trailing newline
             os.write(trimWhitespace(manifestContents));
@@ -86,16 +88,18 @@ public final class ComposableManifestAppenderTransformer implements Transformer 
 
             if (!attributes.isEmpty()) {
                 for (Attribute attribute : attributes) {
-                    os.write(attribute.name().getBytes(StandardCharsets.UTF_8));
+                    os.write(attribute.name.getBytes(StandardCharsets.UTF_8));
                     os.write(SEPARATOR);
-                    os.write(attribute.value().toString().getBytes(StandardCharsets.UTF_8));
+                    os.write(attribute.value.toString().getBytes(StandardCharsets.UTF_8));
                     os.write(EOL);
                 }
                 os.write(EOL);
                 attributes.clear();
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+
+            os.closeEntry();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to write manifest to output stream", e);
         }
     }
 
@@ -105,4 +109,12 @@ public final class ComposableManifestAppenderTransformer implements Transformer 
     }
 
     public record Attribute(String name, Comparable<?> value) implements Serializable {}
+
+    public static ZipEntry zipEntry(String name, boolean preserveLastModified) {
+        ZipEntry entry = new ZipEntry(name);
+        if (!preserveLastModified) {
+            entry.setTime(CONSTANT_TIME_FOR_ZIP_ENTRIES);
+        }
+        return entry;
+    }
 }
