@@ -65,6 +65,7 @@ public final class ComposableManifestAppenderTransformer implements Transformer 
         }
     }
 
+    @Override
     public String getName() {
         return ComposableManifestAppenderTransformer.class.getName();
     }
