@@ -24,6 +24,7 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -57,10 +58,14 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
     private static final Pattern MULTIRELEASE_JAR_PREFIX = Pattern.compile("^META-INF/versions/\\d+/");
     private static final String SERVICE_PROVIDER_PREFIX = "META-INF/services/";
 
+    @SuppressWarnings("GradleTypesAsFields")
     private final Property<ShadowJar> shadowJarProperty =
             getProject().getObjects().property(ShadowJar.class);
 
+    @SuppressWarnings("GradleTypesAsFields")
     private final Property<String> prefix = getProject().getObjects().property(String.class);
+
+    @SuppressWarnings("GradleTypesAsFields")
     private final SetProperty<ResolvedDependency> acceptedDependencies =
             getProject().getObjects().setProperty(ResolvedDependency.class);
 
@@ -104,7 +109,7 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                                 .collect(Collectors.toList())
                                 .stream();
                     } catch (IOException e) {
-                        throw new RuntimeException("Could not open jar file", e);
+                        throw new UncheckedIOException("Could not open jar file", e);
                     }
                 })
                 .collect(Collectors.toSet());

@@ -93,6 +93,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
         dependOnJarTaskInOrderToTriggerTasksAddingManifestAttributes(project, shadowJarProvider);
     }
 
+    @SuppressWarnings({"ConfigurationAvoidanceRegistration", "TaskDependsOn"})
     private void setupShadowJarToShadeTheCorrectDependencies(
             Project project, TaskProvider<ShadowJar> shadowJarProvider) {
         Configuration shadeTransitively = project.getConfigurations().create("shadeTransitively", conf -> {
@@ -132,7 +133,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
         // from another source, so this *should* be ok (there is a test for this).
         ShadowJarVersionLock.excludeConfigurationFromVersionsPropsInjection(project, rejectedFromShading);
 
-        unshaded.getIncoming().beforeResolve(incoming -> {
+        unshaded.getIncoming().beforeResolve(_incoming -> {
             // only process if the unshaded configuration is still unresolved.  The GCV plugin creates an
             // unshadedCopy configuration from the original and this beforeResolve Action is copied as well.  That
             // leads to errors when it tries to modify the original configuration below for a second time.
@@ -278,6 +279,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
                 }));
     }
 
+    @SuppressWarnings("TaskDependsOn")
     private static void dependOnJarTaskInOrderToTriggerTasksAddingManifestAttributes(
             Project project, TaskProvider<ShadowJar> shadowJarProvider) {
         shadowJarProvider.configure(shadowJar ->
