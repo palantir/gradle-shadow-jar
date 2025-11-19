@@ -210,9 +210,9 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
         rejectedFromShading.configure(conf -> conf.getDependencies()
                 .addAllLater(shadowingCalculation.map(calc -> calc.rejectedShadedModules().stream()
-                                .map(this::depToString)
-                                .map(project.getDependencies()::create)
-                                .collect(Collectors.toSet()))));
+                        .map(this::depToString)
+                        .map(project.getDependencies()::create)
+                        .collect(Collectors.toSet()))));
 
         TaskProvider<ShadowJarConfigurationTask> shadowJarConfigurationTask = project.getTasks()
                 .register("relocateShadowJar", ShadowJarConfigurationTask.class, relocateTask -> {
