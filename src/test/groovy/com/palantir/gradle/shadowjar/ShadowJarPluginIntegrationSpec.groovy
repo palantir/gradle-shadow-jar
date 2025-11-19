@@ -1355,6 +1355,71 @@ class ShadowJarPluginIntegrationSpec extends ConfigurationCacheSpec {
         assert !jarEntryNames.contains('com/google/errorprone/annotations/DoNotCall.class')
     }
 
+    def 'multiple shadeJust calls with different withTransitives filters should be independent'() {
+        when:
+        def mavenRepo = generateMavenRepo(
+                'first-dep:first-library:1 -> ' +
+                        'com.google.guava:guava:28.2-jre ' +
+                        '| com.google.code.gson:gson:2.8.6',
+                'second-dep:second-library:1 -> ' +
+                        'com.google.guava:guava:28.2-jre ' +
+                        '| com.google.code.gson:gson:2.8.6'
+        )
+
+        buildFile << """
+            repositories {
+                maven { url "file:///${mavenRepo.getAbsolutePath()}" }
+            }
+
+            dependencies {
+                // First shadeJust call with filter for guava only
+                shadeJust('first-dep:first-library:1') {
+                    withTransitives 'com.google.guava:*'
+                }
+
+                // Second shadeJust call with filter for gson only
+                shadeJust('second-dep:second-library:1') {
+                    withTransitives 'com.google.code.*'
+                }
+            }
+        """.stripIndent(true)
+
+        then:
+        runTasksAndCheckSuccess('publishNebulaPublicationToTestRepoRepository')
+
+        def dependenciesText = dependenciesInPom()
+
+        // Direct dependencies should NOT be in POM
+        assert !dependenciesText.contains('<artifactId>first-library</artifactId>')
+        assert !dependenciesText.contains('<artifactId>second-library</artifactId>')
+
+        // Both guava and gson should NOT be in POM (each shaded by one of the shadeJust calls)
+        assert !dependenciesText.contains('<artifactId>guava</artifactId>')
+        assert !dependenciesText.contains('<artifactId>gson</artifactId>')
+
+        // Guava's transitives should be in POM (not shaded by either filter)
+        assert dependenciesText.contains('<artifactId>error_prone_annotations</artifactId>')
+        assert dependenciesText.contains('<artifactId>checker-qual</artifactId>')
+        assert dependenciesText.contains('<artifactId>j2objc-annotations</artifactId>')
+
+        def jarEntryNames = jarEntryNames()
+
+        // Guava should be shaded (matched by first filter)
+        assert jarEntryNames.contains(relocatedClass('com/google/common/collect/ImmutableList.class'))
+        assert jarEntryNames.contains(relocatedClass('com/google/common/io/ByteSink.class'))
+
+        // Gson should be shaded (matched by second filter)
+        assert jarEntryNames.contains(relocatedClass('com/google/gson/Gson.class'))
+        assert jarEntryNames.contains(relocatedClass('com/google/gson/JsonParser.class'))
+
+        // Verify independence: guava's transitives should NOT be shaded
+        // (even though second shadeJust also depends on guava, the second filter doesn't match guava transitives)
+        assert !jarEntryNames.contains(relocatedClass('com/google/errorprone/annotations/DoNotCall.class'))
+        assert !jarEntryNames.contains('com/google/errorprone/annotations/DoNotCall.class')
+        assert !jarEntryNames.contains(relocatedClass('com/google/j2objc/annotations/Property.class'))
+        assert !jarEntryNames.contains('com/google/j2objc/annotations/Property.class')
+    }
+
 
     @CompileStatic
     private Set<String> jarEntryNames() {
