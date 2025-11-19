@@ -69,7 +69,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
     @Override
     public final void apply(Project project) {
-        if (GradleVersion.current().compareTo(GradleVersion.version("7.0")) < 0) {
+        if (GradleVersion.current().compareTo(GradleVersion.version("8.11")) < 0) {
             throw new IllegalStateException(
                     "You must be using Gradle 7 or above to use the com.palantir.shadow-jar plugin");
         }
