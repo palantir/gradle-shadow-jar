@@ -39,7 +39,7 @@ public final class ComposableManifestAppenderTransformer implements ResourceTran
     private static final byte[] EOL = "\r\n".getBytes(StandardCharsets.UTF_8);
     private static final byte[] SEPARATOR = ": ".getBytes(StandardCharsets.UTF_8);
 
-    public static final long CONSTANT_TIME_FOR_ZIP_ENTRIES =
+    private static final long CONSTANT_TIME_FOR_ZIP_ENTRIES =
             new GregorianCalendar(1980, Calendar.FEBRUARY, 1, 0, 0, 0).getTimeInMillis();
 
     private byte[] manifestContents = new byte[0];
