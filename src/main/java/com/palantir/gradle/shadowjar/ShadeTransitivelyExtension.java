@@ -21,43 +21,24 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ExternalModuleDependency;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 
-/**
- * Extension that adds the shadeTransitively() method to the dependencies block.
- * This allows users to shade a dependency and ALL of its transitive dependencies:
- * <pre>
- * dependencies {
- *     shadeTransitively('com.example:library:1.0')
- * }
- * </pre>
- */
-public record ShadeTransitivelyExtension(Project project, ShadeRegistry registry, String configurationName) {
+public record ShadeTransitivelyExtension(Project project, FilterRegistry registry, String configurationName) {
 
-    /**
-     * Shades the specified dependency and ALL of its transitive dependencies into the shadow jar.
-     *
-     * @param self the DependencyHandler
-     * @param dependencyNotation the dependency notation (e.g., "group:name:version")
-     * @return the created Dependency
-     */
     public static Dependency shadeTransitively(DependencyHandler self, String dependencyNotation) {
         ShadeTransitivelyExtension extension =
                 (ShadeTransitivelyExtension) self.getExtensions().getByName("shadeTransitively");
         return extension.call(dependencyNotation);
     }
 
-    /**
-     * This makes the shadeTransitively() method available in the dependencies {} block.
-     */
-    static void register(Project project, ShadeRegistry registry) {
-        ShadeTransitivelyExtension extension = new ShadeTransitivelyExtension(project, registry, "shaded");
-        project.getDependencies().getExtensions().add("shadeTransitively", extension);
+    static void register(Project project, FilterRegistry registry) {
+        project.getDependencies()
+                .getExtensions()
+                .add("shadeTransitively", new ShadeTransitivelyExtension(project, registry, "shaded"));
     }
 
-    public Dependency call(String dependencyNotation) {
+    private Dependency call(String dependencyNotation) {
         Dependency dep = project.getDependencies().add(configurationName, dependencyNotation);
         if (dep instanceof ExternalModuleDependency) {
-            // Register a filter that matches everything
-            registry.registerFilter(dep, _ignored -> true);
+            registry.addFilter(dep, _ignored -> true);
         }
         return dep;
     }

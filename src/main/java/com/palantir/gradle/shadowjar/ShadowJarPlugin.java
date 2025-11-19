@@ -106,7 +106,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
     private void setupShadowJarToShadeTheCorrectDependencies(
             Project project, TaskProvider<ShadowJar> shadowJarProvider) {
-        ShadeRegistry registry = new ShadeRegistry();
+        FilterRegistry registry = new FilterRegistry();
         project.getExtensions().add("shadeRegistry", registry);
 
         NamedDomainObjectProvider<Configuration> shaded = project.getConfigurations()
@@ -225,7 +225,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
     private Provider<ShadowingCalculation> shadowingCalculation(
             NamedDomainObjectProvider<Configuration> shaded,
             NamedDomainObjectProvider<Configuration> unshaded,
-            ShadeRegistry registry) {
+            FilterRegistry registry) {
         return shaded.zip(unshaded, (shadedConf, unshadedConf) -> {
             Set<ResolvedDependency> shadedDirectModules =
                     shadedConf.getResolvedConfiguration().getFirstLevelModuleDependencies();
