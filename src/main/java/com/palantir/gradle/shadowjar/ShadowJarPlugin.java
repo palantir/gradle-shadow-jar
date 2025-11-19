@@ -21,6 +21,8 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import com.palantir.gradle.versions.VersionRecommendationsExtension;
+import com.palantir.gradle.versions.VersionsLockExtension;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
@@ -118,8 +120,8 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     runtimeElements.extendsFrom(rejectedFromShading);
                 });
 
-        ShadowJarVersionLock.lockConfiguration(project, shadeTransitively);
-        ShadowJarVersionLock.lockConfiguration(project, unshaded);
+        lockConfiguration(project, shadeTransitively);
+        lockConfiguration(project, unshaded);
 
         // This is needed to "break the loop" when GCV does --write-locks. At project.afterEvaluate, VersionsLockPlugin
         // will calculate its lock state, which involves resolving unifiedClasspath. unifiedClasspath extends from
@@ -131,7 +133,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
         // the version props plugin which is what we do below. Any constraints that were going to be injected into
         // in a "final" configuration like runtimeClasspath or runtimeElements should still get these constraints
         // from another source, so this *should* be ok (there is a test for this).
-        ShadowJarVersionLock.excludeConfigurationFromVersionsPropsInjection(project, rejectedFromShading);
+        excludeConfigurationFromVersionsPropsInjection(project, rejectedFromShading);
 
         unshaded.getIncoming().beforeResolve(_incoming -> {
             // only process if the unshaded configuration is still unresolved.  The GCV plugin creates an
@@ -284,5 +286,16 @@ public class ShadowJarPlugin implements Plugin<Project> {
             Project project, TaskProvider<ShadowJar> shadowJarProvider) {
         shadowJarProvider.configure(shadowJar ->
                 shadowJar.dependsOn(project.getTasks().withType(Jar.class).named("jar")));
+    }
+
+    private static void lockConfiguration(Project project, Configuration configuration) {
+        VersionsLockExtension versionsLock = project.getExtensions().getByType(VersionsLockExtension.class);
+        versionsLock.production(scope -> scope.from(configuration.getName()));
+    }
+
+    private static void excludeConfigurationFromVersionsPropsInjection(Project project, Configuration configuration) {
+        VersionRecommendationsExtension versionRecommendations =
+                project.getRootProject().getExtensions().getByType(VersionRecommendationsExtension.class);
+        versionRecommendations.excludeConfigurations(configuration.getName());
     }
 }
