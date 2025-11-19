@@ -58,9 +58,10 @@ dependencies {
     annotationProcessor 'org.immutables:value'
     compileOnly 'org.immutables:value::annotations'
 
-    testImplementation 'com.netflix.nebula:nebula-test'
     testImplementation 'commons-io:commons-io'
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml'
+
     testRuntimeOnly 'org.junit.vintage:junit-vintage-engine', {
         because 'allows JUnit 3 and JUnit 4 tests to run'
     }
@@ -69,6 +70,10 @@ dependencies {
     testImplementation 'com.palantir.tracing:tracing'
     testImplementation 'com.palantir.safe-logging:safe-logging'
     testImplementation 'com.palantir.tritium:tritium-registry'
+
+    gradlePluginForTesting 'com.palantir.gradle.consistentversions:gradle-consistent-versions'
+    gradlePluginForTesting 'com.netflix.nebula:nebula-publishing-plugin'
+    gradlePluginForTesting 'org.unbroken-dome.test-sets:org.unbroken-dome.test-sets.gradle.plugin'
 }
 
 

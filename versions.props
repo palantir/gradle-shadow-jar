@@ -6,8 +6,8 @@ com.google.guava:guava = 33.5.0-jre
 com.palantir.tracing:tracing = 6.29.0
 com.palantir.safe-logging:safe-logging = 3.9.0
 com.palantir.tritium:tritium-registry = 0.115.0
-com.netflix.nebula:nebula-test = 10.6.2
 commons-io:commons-io = 2.21.0
+com.fasterxml.jackson.dataformat:jackson-dataformat-xml = 2.20.1
 
 # conflict resolution
 com.google.code.findbugs:jsr305 = 3.0.2
@@ -16,3 +16,8 @@ org.checkerframework:checker-qual = 3.52.0
 org.junit.jupiter:* = 6.0.1
 org.junit.platform:* = 6.0.1
 org.junit.vintage:* = 6.0.1
+
+# gradlePluginForTesting
+org.unbroken-dome.test-sets:org.unbroken-dome.test-sets.gradle.plugin = 4.1.0
+com.palantir.gradle.consistentversions:gradle-consistent-versions = 3.7.0
+com.netflix.nebula:nebula-publishing-plugin = 17.2.1
