@@ -37,13 +37,14 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -94,8 +95,7 @@ class ShadowJarPluginIntegrationSpec {
             """);
         project.buildGradle().plugins().add("java-library");
 
-        gradle.withArgs("publishNebulaPublicationToTestRepoRepository", "--warning-mode=none", "--write-locks")
-                .buildsSuccessfully();
+        runTasksAndCheckSuccess(gradle, "publishNebulaPublicationToTestRepoRepository");
 
         String dependenciesText = dependenciesInPom(project);
 
@@ -141,8 +141,7 @@ class ShadowJarPluginIntegrationSpec {
             }
             """);
 
-        gradle.withArgs("publishNebulaPublicationToTestRepoRepository", "--warning-mode=none", "--write-locks")
-                .buildsSuccessfully();
+        runTasksAndCheckSuccess(gradle, "publishNebulaPublicationToTestRepoRepository");
 
         String dependenciesText = dependenciesInPom(project);
 
@@ -176,8 +175,7 @@ class ShadowJarPluginIntegrationSpec {
             }
             """);
 
-        gradle.withArgs("publishNebulaPublicationToTestRepoRepository", "--warning-mode=none", "--write-locks")
-                .buildsSuccessfully();
+        runTasksAndCheckSuccess(gradle, "publishNebulaPublicationToTestRepoRepository");
 
         String dependenciesText = dependenciesInPom(project);
 
@@ -215,12 +213,10 @@ class ShadowJarPluginIntegrationSpec {
             """, MAVEN_ROOT);
 
         writeHelloWorld(project);
-        gradle.withArgs("extractForAssertions", "--warning-mode=none", "--write-locks")
-                .buildsSuccessfully();
+        runTasksAndCheckSuccess(gradle, "extractForAssertions");
 
-        Set<String> jarEntryNames = shadowJarFile(project).stream()
-                .map(ZipEntry::getName)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> jarEntryNames =
+                shadowJarFile(project).stream().map(ZipEntry::getName).collect(Collectors.toSet());
 
         assertThat(jarEntryNames)
                 .contains(
@@ -267,12 +263,10 @@ class ShadowJarPluginIntegrationSpec {
             """, MAVEN_ROOT);
 
         writeHelloWorld(project);
-        gradle.withArgs("extractForAssertions", "--warning-mode=none", "--write-locks")
-                .buildsSuccessfully();
+        runTasksAndCheckSuccess(gradle, "extractForAssertions");
 
-        Set<String> jarEntryNames = shadowJarFile(project).stream()
-                .map(ZipEntry::getName)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> jarEntryNames =
+                shadowJarFile(project).stream().map(ZipEntry::getName).collect(Collectors.toSet());
 
         String service = "META-INF/services/jakarta.ws.rs.ext.RuntimeDelegate";
         assertThat(jarEntryNames).contains(service);
@@ -310,12 +304,10 @@ class ShadowJarPluginIntegrationSpec {
             """, MAVEN_ROOT);
 
         writeHelloWorld(project);
-        gradle.withArgs("extractForAssertions", "--warning-mode=none", "--write-locks")
-                .buildsSuccessfully();
+        runTasksAndCheckSuccess(gradle, "extractForAssertions");
 
-        Set<String> jarEntryNames = shadowJarFile(project).stream()
-                .map(ZipEntry::getName)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> jarEntryNames =
+                shadowJarFile(project).stream().map(ZipEntry::getName).collect(Collectors.toSet());
 
         String service = "META-INF/services/shadow.com.palantir.bar_baz_quux.asd_fgh.jakarta.ws.rs.ext.RuntimeDelegate";
         assertThat(jarEntryNames)
@@ -353,8 +345,7 @@ class ShadowJarPluginIntegrationSpec {
             }
             """);
 
-        gradle.withArgs("publishNebulaPublicationToTestRepoRepository", "--warning-mode=none", "--write-locks")
-                .buildsSuccessfully();
+        runTasksAndCheckSuccess(gradle, "publishNebulaPublicationToTestRepoRepository");
 
         String dependenciesText = dependenciesInPom(project);
 
@@ -388,8 +379,7 @@ class ShadowJarPluginIntegrationSpec {
             }
             """);
 
-        gradle.withArgs("publishNebulaPublicationToTestRepoRepository", "--warning-mode=none", "--write-locks")
-                .buildsSuccessfully();
+        runTasksAndCheckSuccess(gradle, "publishNebulaPublicationToTestRepoRepository");
 
         String dependenciesText = dependenciesInPom(project);
 
@@ -410,8 +400,7 @@ class ShadowJarPluginIntegrationSpec {
             }
             """);
 
-        gradle.withArgs("publishNebulaPublicationToTestRepoRepository", "--warning-mode=none", "--write-locks")
-                .buildsSuccessfully();
+        runTasksAndCheckSuccess(gradle, "publishNebulaPublicationToTestRepoRepository");
 
         Set<String> jarEntryNames = jarEntryNames(project);
 
@@ -476,8 +465,7 @@ class ShadowJarPluginIntegrationSpec {
             }
             """);
 
-        gradle.withArgs("test", "integrationTest", "--warning-mode=none", "--write-locks")
-                .buildsSuccessfully();
+        runTasksAndCheckSuccess(gradle, "test", "integrationTest");
     }
 
     @Test
@@ -489,7 +477,7 @@ class ShadowJarPluginIntegrationSpec {
             }
             """);
 
-        gradle.withArgs("jar", "--warning-mode=none", "--write-locks").buildsSuccessfully();
+        runTasksAndCheckSuccess(gradle, "jar");
 
         project.file("build/libs/asd-fgh-2-thin.jar").assertThat().exists();
     }
@@ -512,8 +500,7 @@ class ShadowJarPluginIntegrationSpec {
             jar.dependsOn addManifestItem
             """);
 
-        gradle.withArgs("publishNebulaPublicationToTestRepoRepository", "--warning-mode=none", "--write-locks")
-                .buildsSuccessfully();
+        runTasksAndCheckSuccess(gradle, "publishNebulaPublicationToTestRepoRepository");
 
         assertThat(shadowJarFile(project).getManifest().getMainAttributes().getValue("Foo"))
                 .isEqualTo("Bar");
@@ -543,8 +530,7 @@ class ShadowJarPluginIntegrationSpec {
             }
             """);
 
-        InvocationResult result = gradle.withArgs("printRuntimeClasspath", "--warning-mode=none", "--write-locks")
-                .buildsSuccessfully();
+        InvocationResult result = runTasksAndCheckSuccess(gradle, "printRuntimeClasspath");
 
         assertThat(result).output().contains("org.slf4j:slf4j-log4j12:1.7.30");
     }
@@ -554,7 +540,7 @@ class ShadowJarPluginIntegrationSpec {
         project.gradlePropertiesFile().appendProperty("ignoreLockFile", "true");
         project.file("versions.props").createEmpty();
 
-        gradle.withArgs("checkUnusedConstraints", "--warning-mode=none").buildsSuccessfully();
+        runTasksAndCheckSuccess(gradle, "checkUnusedConstraints");
     }
 
     private Set<String> jarEntryNames(RootProject project) {
@@ -599,6 +585,14 @@ class ShadowJarPluginIntegrationSpec {
 
     private String relocatedClass(String clazz) {
         return "shadow/com/palantir/bar_baz_quux/asd_fgh/" + clazz;
+    }
+
+    private InvocationResult runTasksAndCheckSuccess(GradleInvoker gradle, String... args) {
+        String[] allArgs = Stream.concat(Stream.of("--warning-mode=none", "--write-locks"), Arrays.stream(args))
+                .toArray(String[]::new);
+        InvocationResult executionResult = gradle.withArgs(allArgs).buildsSuccessfully();
+        System.out.println(executionResult.output());
+        return executionResult;
     }
 
     private void writeHelloWorld(RootProject project) {
