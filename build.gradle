@@ -54,6 +54,7 @@ dependencies {
     implementation 'org.apache.ant:ant'
     implementation 'org.codehaus.plexus:plexus-utils'
     implementation 'com.google.guava:guava'
+    compileOnly 'com.palantir.gradle.consistentversions:gradle-consistent-versions'
 
     annotationProcessor 'org.immutables:value'
     compileOnly 'org.immutables:value::annotations'
