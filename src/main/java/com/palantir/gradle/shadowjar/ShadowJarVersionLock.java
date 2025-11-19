@@ -29,8 +29,7 @@ public final class ShadowJarVersionLock {
         versionsLock.production(scope -> scope.from(configuration.getName()));
     }
 
-    public static void excludeConfigurationFromVersionsPropsInjection(
-            Project project, Configuration configuration) {
+    public static void excludeConfigurationFromVersionsPropsInjection(Project project, Configuration configuration) {
         VersionRecommendationsExtension versionRecommendations =
                 project.getRootProject().getExtensions().getByType(VersionRecommendationsExtension.class);
         versionRecommendations.excludeConfigurations(configuration.getName());
