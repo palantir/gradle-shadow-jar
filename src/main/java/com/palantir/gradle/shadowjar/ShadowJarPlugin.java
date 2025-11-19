@@ -308,6 +308,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
                 }));
     }
 
+    @SuppressWarnings("TaskDependsOn")
     private static void dependOnJarTaskInOrderToTriggerTasksAddingManifestAttributes(
             Project project, TaskProvider<ShadowJar> shadowJarProvider) {
         shadowJarProvider.configure(shadowJar ->

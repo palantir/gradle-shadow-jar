@@ -8,16 +8,16 @@ buildscript {
         classpath 'com.palantir.jakartapackagealignment:jakarta-package-alignment:0.6.0'
         classpath 'com.palantir.gradle.jdks:gradle-jdks:0.69.0'
         classpath 'com.palantir.gradle.jdkslatest:gradle-jdks-latest:0.24.0'
-        classpath 'com.palantir.gradle.plugintesting:gradle-plugin-testing:0.29.0'
-        classpath 'com.palantir.gradle.externalpublish:gradle-external-publish-plugin:1.26.0'
-        classpath 'com.palantir.gradle.failure-reports:gradle-failure-reports:1.17.0'
-        classpath 'com.palantir.javaformat:gradle-palantir-java-format:2.81.0'
-        classpath 'com.palantir.suppressible-error-prone:gradle-suppressible-error-prone:2.24.0'
-        classpath 'com.palantir.gradle.consistentversions:gradle-consistent-versions:3.6.0'
-        classpath 'com.palantir.baseline:gradle-baseline-java:6.68.0'
-        classpath 'com.palantir.gradle.gitversion:gradle-git-version:4.1.0'
-        classpath 'com.palantir.gradle.guide:gradle-guide:1.24.0'
-        classpath 'com.palantir.gradle.idea-configuration:gradle-idea-configuration:0.7.0'
+        classpath 'com.palantir.gradle.plugintesting:gradle-plugin-testing:0.37.0'
+        classpath 'com.palantir.gradle.externalpublish:gradle-external-publish-plugin:1.27.0'
+        classpath 'com.palantir.gradle.failure-reports:gradle-failure-reports:1.18.0'
+        classpath 'com.palantir.javaformat:gradle-palantir-java-format:2.82.0'
+        classpath 'com.palantir.suppressible-error-prone:gradle-suppressible-error-prone:2.26.0'
+        classpath 'com.palantir.gradle.consistentversions:gradle-consistent-versions:3.7.0'
+        classpath 'com.palantir.baseline:gradle-baseline-java:6.71.0'
+        classpath 'com.palantir.gradle.gitversion:gradle-git-version:4.2.0'
+        classpath 'com.palantir.gradle.guide:gradle-guide:1.25.0'
+        classpath 'com.palantir.gradle.idea-configuration:gradle-idea-configuration:0.8.0'
         classpath 'com.palantir.gradle.idea-language-injector:gradle-idea-language-injector:0.2.0'
     }
 }
@@ -60,9 +60,10 @@ dependencies {
 
     compileOnly 'com.palantir.gradle.consistentversions:gradle-consistent-versions'
 
-    testImplementation 'com.netflix.nebula:nebula-test'
     testImplementation 'commons-io:commons-io'
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml'
+
     testRuntimeOnly 'org.junit.vintage:junit-vintage-engine', {
         because 'allows JUnit 3 and JUnit 4 tests to run'
     }
@@ -71,6 +72,10 @@ dependencies {
     testImplementation 'com.palantir.tracing:tracing'
     testImplementation 'com.palantir.safe-logging:safe-logging'
     testImplementation 'com.palantir.tritium:tritium-registry'
+
+    gradlePluginForTesting 'com.palantir.gradle.consistentversions:gradle-consistent-versions'
+    gradlePluginForTesting 'com.netflix.nebula:nebula-publishing-plugin'
+    gradlePluginForTesting 'org.unbroken-dome.test-sets:org.unbroken-dome.test-sets.gradle.plugin'
 }
 
 
@@ -99,4 +104,5 @@ jdks {
 
 gradleTestUtils {
     gradleVersions = ['8.14.3']
+    getConfigurationCacheEnabled().set(true)
 }
