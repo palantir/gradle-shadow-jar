@@ -235,6 +235,9 @@ public class ShadowJarPlugin implements Plugin<Project> {
         shadowJarProvider.configure(shadowJar -> {
             shadowJar.dependsOn(shadowJarConfigurationTask);
             shadowJar.getConfigurations().set(shadeTransitively.map(Collections::singletonList));
+
+            // Even thought this is supposed to be the default without this explicitly set we were seeing duplicate
+            // files (same as if was set to DuplicatesStrategy.INCLUDE
             shadowJar.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
         });
     }
