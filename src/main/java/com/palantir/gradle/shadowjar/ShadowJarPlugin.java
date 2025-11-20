@@ -283,7 +283,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
             shadowJar.setZip64(true);
 
             // Multiple jars might have an entry in META-INF/services for the same interface, so we merge them.
-            // https://imperceptiblethoughts.com/shadow/configuration/merging/#merging-service-descriptor-files
+            // https://gradleup.com/shadow/configuration/merging/#handling-duplicates-strategy
             shadowJar.mergeServiceFiles();
         });
     }
