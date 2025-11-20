@@ -121,9 +121,6 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                 .collect(Collectors.toSet());
 
         shadowJarTask.relocate(new JarFilesRelocator(relocatable, prefix.get() + "."));
-
-        // Shadow 9.0.0+ automatically injects Multi-Release manifest attribute if any dependency contains it
-        // https://github.com/GradleUp/shadow/releases/tag/9.0.0
     }
 
     /** Returns a pair of 'META-INF/versions/9/' and 'com/foo/whatever.class'. */
