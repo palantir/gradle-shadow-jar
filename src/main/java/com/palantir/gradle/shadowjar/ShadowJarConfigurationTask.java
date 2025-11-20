@@ -102,9 +102,7 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                                 .map(ZipEntry::getName)
                                 .peek(path -> log.debug("Jar '{}' contains entry '{}'", jar.getName(), path))
                                 .peek(path -> Preconditions.checkState(
-                                        !path.startsWith("/"), "Unexpected absolute path '%s' in jar '%s'", path, jar))
-                                .toList()
-                                .stream();
+                                        !path.startsWith("/"), "Unexpected absolute path '%s' in jar '%s'", path, jar));
                     } catch (IOException e) {
                         throw new UncheckedIOException("Could not open jar file", e);
                     }
