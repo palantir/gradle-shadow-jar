@@ -79,7 +79,7 @@ public final class ComposableManifestAppenderTransformer implements ResourceTran
     @Override
     public void modifyOutputStream(ZipOutputStream os, boolean preserveFileTimestamps) {
         try {
-            ZipEntry entry = zipEntry(JarFile.MANIFEST_NAME, preserveFileTimestamps);
+            ZipEntry entry = zipEntry(preserveFileTimestamps);
 
             os.putNextEntry(entry);
             // Change: Trim existing file contents and add a single trailing newline
@@ -110,8 +110,8 @@ public final class ComposableManifestAppenderTransformer implements ResourceTran
 
     public record Attribute(String name, Comparable<?> value) implements Serializable {}
 
-    public static ZipEntry zipEntry(String name, boolean preserveLastModified) {
-        ZipEntry entry = new ZipEntry(name);
+    private static ZipEntry zipEntry(boolean preserveLastModified) {
+        ZipEntry entry = new ZipEntry(JarFile.MANIFEST_NAME);
         if (!preserveLastModified) {
             entry.setTime(CONSTANT_TIME_FOR_ZIP_ENTRIES);
         }
