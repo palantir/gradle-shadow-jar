@@ -84,10 +84,18 @@ public class ShadowJarPlugin implements Plugin<Project> {
         TaskProvider<ShadowJar> shadowJarProvider =
                 project.getTasks().withType(ShadowJar.class).named("shadowJar");
 
-        // Disable Shadow's shadowRuntimeElements variant to avoid conflicts with GCV
-        // Shadow tries to modify shadowRuntimeElements in afterEvaluate, but GCV locks it earlier
+        /*
+         * Disable Shadow's automatic configuration to avoid conflicts with GCV and our custom component handling.
+         *
+         * addTargetJvmVersionAttribute: Shadow modifies shadowRuntimeElements in afterEvaluate to add the
+         * TARGET_JVM_VERSION_ATTRIBUTE (ShadowJavaPlugin.kt:72-95), but GCV locks configurations earlier:
+         *   > Cannot change attributes of configuration ':shadowRuntimeElements' after it has been locked for
+         *     mutation
+         *
+         * Reference: https://github.com/GradleUp/shadow/blob/9.2.2/src/main/kotlin/com/github/jengelman/gradle/
+         * plugins/shadow/ShadowJavaPlugin.kt#L72-L95
+         */
         project.getExtensions().configure(ShadowExtension.class, shadow -> {
-            shadow.getAddShadowVariantIntoJavaComponent().set(false);
             shadow.getAddTargetJvmVersionAttribute().set(false);
         });
 
