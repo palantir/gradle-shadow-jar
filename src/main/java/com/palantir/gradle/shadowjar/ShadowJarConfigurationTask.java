@@ -122,12 +122,8 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
 
         shadowJarTask.relocate(new JarFilesRelocator(relocatable, prefix.get() + "."));
 
-        if (!multiReleaseStuff.isEmpty()) {
-            shadowJarTask.transform(ComposableManifestAppenderTransformer.class, transformer -> {
-                // JEP 238 requires this manifest entry
-                transformer.append("Multi-Release", true);
-            });
-        }
+        // Shadow 9.0.0+ automatically injects Multi-Release manifest attribute if any dependency contains it
+        // https://github.com/GradleUp/shadow/releases/tag/9.0.0
     }
 
     /** Returns a pair of 'META-INF/versions/9/' and 'com/foo/whatever.class'. */
