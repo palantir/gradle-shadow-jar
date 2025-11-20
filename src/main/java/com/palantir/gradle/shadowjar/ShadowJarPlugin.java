@@ -35,6 +35,7 @@ import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ExternalModuleDependency;
 import org.gradle.api.artifacts.ResolvedDependency;
+import org.gradle.api.file.DuplicatesStrategy;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -234,6 +235,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
         shadowJarProvider.configure(shadowJar -> {
             shadowJar.dependsOn(shadowJarConfigurationTask);
             shadowJar.getConfigurations().set(shadeTransitively.map(Collections::singletonList));
+            shadowJar.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
         });
     }
 
