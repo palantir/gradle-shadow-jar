@@ -26,7 +26,6 @@ import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
@@ -109,10 +108,13 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
                 })
                 .collect(Collectors.toSet());
 
-        // The Relocator is responsible for fixing the bytecode at callsites *and* filenames of .class files,
-        // so we have to account for things _calling_ these weird multi-release classes.
+        // For multi-release JARs (e.g., META-INF/versions/9/com/foo/Bar.class), we need to add the
+        // unprefixed path (com/foo/Bar.class) to the relocatable set. This ensures that bytecode references
+        // to com.foo.Bar are properly relocated, even though the actual file path relocation is handled by
+        // ShadowCopyAction which temporarily removes the prefix before calling relocatePath. See:
+        // https://github.com/GradleUp/shadow/blob/9.2.2/src/main/kotlin/com/github/jengelman/gradle/plugins/shadow/tasks/ShadowCopyAction.kt#L230-L233
         Set<String> multiReleaseStuff = pathsInJars.stream()
-                .flatMap(input -> splitMultiReleasePath(input).stream().skip(1))
+                .flatMap(ShadowJarConfigurationTask::splitMultiReleasePath)
                 .collect(Collectors.toSet());
 
         Set<String> relocatable = Stream.concat(pathsInJars.stream(), multiReleaseStuff.stream())
@@ -123,13 +125,16 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
         shadowJarTask.relocate(new JarFilesRelocator(relocatable, prefix.get() + "."));
     }
 
-    /** Returns a pair of 'META-INF/versions/9/' and 'com/foo/whatever.class'. */
-    private static List<String> splitMultiReleasePath(String input) {
+    /*
+        Returns the path without the multi-release prefix e.g.
+        'com/foo/Bar.class' from 'META-INF/versions/9/com/foo/Bar.class'.
+    */
+    private static Stream<String> splitMultiReleasePath(String input) {
         Matcher matcher = MULTIRELEASE_JAR_PREFIX.matcher(input);
         if (matcher.find()) {
-            return ImmutableList.of(input.substring(0, matcher.end()), input.substring(matcher.end()));
+            return Stream.of(input.substring(matcher.end()));
         } else {
-            return ImmutableList.of();
+            return Stream.empty();
         }
     }
 
@@ -149,39 +154,14 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
 
         @Override
         public String relocatePath(RelocatePathContext context) {
-            List<String> maybePair = splitMultiReleasePath(context.getPath());
-            if (!maybePair.isEmpty()) {
-                return relocateMultiReleasePath(maybePair);
-            }
-
             String output = super.relocatePath(context);
             log.debug("relocatePath('{}') -> {}", context.getPath(), output);
             return output;
         }
 
-        private String relocateMultiReleasePath(List<String> pair) {
-            RelocatePathContext pathWithoutPrefix = new RelocatePathContext(pair.get(1));
-            String out = pair.get(0) + super.relocatePath(pathWithoutPrefix);
-            log.debug("relocateMultiReleasePath('{}') -> {}", pathWithoutPrefix.getPath(), out);
-            return out;
-        }
-
         @Override
         public String relocateClass(RelocateClassContext context) {
-            String className = context.getClassName();
-            String output;
-            // Work around a poor interaction between ServiceFileTransformer and our
-            // prefix configuration which otherwise results in prefixes being added
-            // prior to 'META-INF', breaking service loading. The default SimpleRelocator
-            // replaces the first instance of the expected prefix with the new prefix,
-            // however this is problematic when the expected prefix is an empty string.
-            if (className.startsWith(SERVICE_PROVIDER_PREFIX)) {
-                String targetClassName = className.substring(SERVICE_PROVIDER_PREFIX.length());
-                RelocateClassContext serviceContext = new RelocateClassContext(targetClassName);
-                output = SERVICE_PROVIDER_PREFIX + super.relocateClass(serviceContext);
-            } else {
-                output = super.relocateClass(context);
-            }
+            String output = super.relocateClass(context);
             log.debug("relocateClass('{}') -> {}", context.getClassName(), output);
             return output;
         }
