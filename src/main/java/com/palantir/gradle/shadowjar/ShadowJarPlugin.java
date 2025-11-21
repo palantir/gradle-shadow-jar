@@ -253,9 +253,9 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
             Provider<Set<String>> relocatablePaths = pathsInJars.map(ShadowJarPlugin::computeRelocatablePaths);
 
-            shadowJar.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
-
             shadowJar.getRelocators().add(new JarFilesRelocator(relocatablePaths, prefix + "."));
+
+            shadowJar.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
         });
     }
 
