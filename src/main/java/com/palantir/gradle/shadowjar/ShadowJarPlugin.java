@@ -340,7 +340,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
         versionRecommendations.excludeConfigurations(configuration.getName());
     }
 
-    public static Set<String> scanJarsForPaths(FileCollection jars) {
+    private static Set<String> scanJarsForPaths(FileCollection jars) {
         return jars.getFiles().stream()
                 .flatMap(jar -> {
                     try (JarFile jarFile = new JarFile(jar)) {
@@ -357,7 +357,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
                 .collect(Collectors.toSet());
     }
 
-    public static Set<String> computeRelocatablePaths(Set<String> pathsInJars) {
+    private static Set<String> computeRelocatablePaths(Set<String> pathsInJars) {
         // For multi-release JARs (e.g., META-INF/versions/9/com/foo/Bar.class), we need to add the
         // unprefixed path (com/foo/Bar.class) to the relocatable set. This ensures that bytecode references
         // to com.foo.Bar are properly relocated, even though the actual file path relocation is handled by
