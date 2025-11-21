@@ -1,6 +1,6 @@
 com.fasterxml.jackson.*:* = 2.20.0
 com.fasterxml.jackson.core:jackson-annotations = 2.20
-com.github.johnrengelman:shadow = 8.1.1
+com.gradleup.shadow:shadow-gradle-plugin = 9.2.2
 org.immutables:value = 2.11.7
 com.google.guava:guava = 33.5.0-jre
 

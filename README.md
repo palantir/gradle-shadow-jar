@@ -5,7 +5,7 @@
 # Gradle shadow jar ![Bintray](https://img.shields.io/bintray/v/palantir/releases/gradle-shadow-jar.svg) [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://opensource.org/licenses/Apache-2.0)
 
 
-This is a Gradle plugin that wraps the existing [`shadow`](https://github.com/johnrengelman/shadow) Gradle plugin to
+This is a Gradle plugin that wraps the existing [`shadow`](https://github.com/GradleUp/shadow) Gradle plugin to
 make producing *partially shaded jars* much easier. This means you can shade just one of your dependencies in a library or Gradle plugin to avoid dependency clashes. It is possible to produce fully shaded jars with this plugin, but it is not the aim of this plugin, and perf may be bad for shading a large dependency tree.
 
 ## Applying the plugin
@@ -28,7 +28,7 @@ To apply this plugin, *build.gradle* should look something like:
  }
 ```
 
-*Requires [`gradle-consistent-versions`](https://github.com/palantir/gradle-consistent-versions) and Gradle 8 to work.*
+*Requires [`gradle-consistent-versions`](https://github.com/palantir/gradle-consistent-versions) and Gradle 8.11+ to work.*
 
 ## Producing shaded JARs
 
