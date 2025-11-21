@@ -16,13 +16,8 @@
 
 package com.palantir.gradle.shadowjar;
 
-import com.github.jengelman.gradle.plugins.shadow.relocation.CacheableRelocator;
-import com.github.jengelman.gradle.plugins.shadow.relocation.RelocateClassContext;
-import com.github.jengelman.gradle.plugins.shadow.relocation.RelocatePathContext;
-import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
@@ -49,8 +44,6 @@ import org.slf4j.LoggerFactory;
 public abstract class ShadowJarConfigurationTask extends DefaultTask {
 
     private static final Logger log = LoggerFactory.getLogger(ShadowJarConfigurationTask.class);
-
-    private static final String CLASS_SUFFIX = ".class";
 
     // Multi-Release JAR Files are defined in https://openjdk.java.net/jeps/238
     private static final Pattern MULTIRELEASE_JAR_PREFIX = Pattern.compile("^META-INF/versions/\\d+/");
@@ -135,35 +128,6 @@ public abstract class ShadowJarConfigurationTask extends DefaultTask {
             return Stream.of(input.substring(matcher.end()));
         } else {
             return Stream.empty();
-        }
-    }
-
-    @CacheableRelocator
-    private static final class JarFilesRelocator extends SimpleRelocator {
-        private final Set<String> relocatable;
-
-        private JarFilesRelocator(Set<String> relocatable, String shadedPrefix) {
-            super("", shadedPrefix, ImmutableList.of(), ImmutableList.of());
-            this.relocatable = relocatable;
-        }
-
-        @Override
-        public boolean canRelocatePath(String path) {
-            return relocatable.contains(path + CLASS_SUFFIX) || relocatable.contains(path);
-        }
-
-        @Override
-        public String relocatePath(RelocatePathContext context) {
-            String output = super.relocatePath(context);
-            log.debug("relocatePath('{}') -> {}", context.getPath(), output);
-            return output;
-        }
-
-        @Override
-        public String relocateClass(RelocateClassContext context) {
-            String output = super.relocateClass(context);
-            log.debug("relocateClass('{}') -> {}", context.getClassName(), output);
-            return output;
         }
     }
 }
