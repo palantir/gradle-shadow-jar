@@ -20,26 +20,33 @@ import com.github.jengelman.gradle.plugins.shadow.relocation.CacheableRelocator;
 import com.github.jengelman.gradle.plugins.shadow.relocation.RelocateClassContext;
 import com.github.jengelman.gradle.plugins.shadow.relocation.RelocatePathContext;
 import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
+import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import java.util.Set;
-import java.util.function.Supplier;
+import javax.inject.Inject;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
-import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.SetProperty;
+import org.gradle.api.tasks.Input;
 
 @CacheableRelocator
-final class JarFilesRelocator extends SimpleRelocator {
+abstract class JarFilesRelocator extends SimpleRelocator {
     private static final Logger log = Logging.getLogger(JarFilesRelocator.class);
 
     private static final String CLASS_SUFFIX = ".class";
 
-    private final Supplier<Set<String>> relocatable;
+    @Input
+    public abstract SetProperty<String> getRelocatable();
 
-    JarFilesRelocator(Provider<Set<String>> relocatableProvider, String shadedPrefix) {
+    @Inject
+    public JarFilesRelocator(String shadedPrefix) {
         super("", shadedPrefix, ImmutableList.of(), ImmutableList.of());
-        this.relocatable = Suppliers.memoize(relocatableProvider::get);
     }
+
+    // Memoize the provider value to ensure it's resolved exactly once during task execution.
+    private final Supplier<Set<String>> relocatable =
+            Suppliers.memoize(() -> getRelocatable().get());
 
     @Override
     public boolean canRelocatePath(String path) {

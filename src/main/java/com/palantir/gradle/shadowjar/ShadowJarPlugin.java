@@ -255,9 +255,11 @@ public class ShadowJarPlugin implements Plugin<Project> {
 
             Provider<Set<String>> relocatablePaths = pathsInJars.map(ShadowJarPlugin::computeRelocatablePaths);
 
-            shadowJar
-                    .getRelocators()
-                    .add(prefixProvider.map(prefix -> new JarFilesRelocator(relocatablePaths, prefix + ".")));
+            shadowJar.getRelocators().add(prefixProvider.map(prefix -> {
+                JarFilesRelocator relocator = project.getObjects().newInstance(JarFilesRelocator.class, prefix + ".");
+                relocator.getRelocatable().set(relocatablePaths);
+                return relocator;
+            }));
 
             shadowJar.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
         });
