@@ -20,24 +20,15 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import com.github.jengelman.gradle.plugins.shadow.internal.DefaultDependencyFilter;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.palantir.gradle.versions.VersionRecommendationsExtension;
 import com.palantir.gradle.versions.VersionsLockExtension;
-import java.io.File;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.jar.JarFile;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.zip.ZipEntry;
 import org.gradle.api.NamedDomainObjectProvider;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -45,9 +36,6 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ExternalModuleDependency;
 import org.gradle.api.artifacts.ResolvedDependency;
 import org.gradle.api.file.DuplicatesStrategy;
-import org.gradle.api.file.FileCollection;
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -57,8 +45,6 @@ import org.gradle.util.GradleVersion;
 import org.immutables.value.Value;
 
 public class ShadowJarPlugin implements Plugin<Project> {
-    private static final Logger log = Logging.getLogger(ShadowJarPlugin.class);
-
     private static final Set<Predicate<ResolvedDependency>> BANNED_LIBRARIES = ImmutableSet.of(
             groupOf("org.slf4j"),
             groupOf("commons-logging"),
@@ -68,10 +54,6 @@ public class ShadowJarPlugin implements Plugin<Project> {
             groupOf("com.palantir.tracing").and(artifactOf("tracing").or(artifactOf("tracing-api"))),
             groupOf("com.palantir.tritium").and(artifactOf("tritium-registry")),
             groupOf("org.springframework").and(artifactOf("spring-jcl")));
-
-    // Multi-Release JAR Files are defined in https://openjdk.java.net/jeps/238
-    private static final Pattern MULTIRELEASE_JAR_PREFIX = Pattern.compile("^META-INF/versions/\\d+/");
-    private static final String SERVICE_PROVIDER_PREFIX = "META-INF/services/";
 
     private static Predicate<ResolvedDependency> groupOf(String group) {
         return dependency -> group.equals(dependency.getModuleGroup());
@@ -249,16 +231,10 @@ public class ShadowJarPlugin implements Plugin<Project> {
                             .replace('-', '_')
                             .toLowerCase(Locale.US));
 
-            FileCollection includedDeps = shadowJar.getIncludedDependencies();
-
-            Provider<Set<String>> pathsInJars = ShadowJarPlugin.scanJarsForPaths(includedDeps);
-
-            Provider<Set<String>> relocatablePaths = pathsInJars.map(ShadowJarPlugin::computeRelocatablePaths);
-
             shadowJar
                     .getRelocators()
-                    .add(prefixProvider.zip(
-                            relocatablePaths, (prefix, paths) -> new JarFilesRelocator(prefix + ".", paths)));
+                    .add(prefixProvider.map(
+                            prefix -> new JarFilesRelocator(prefix + ".", shadowJar.getIncludedDependencies())));
 
             shadowJar.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
         });
@@ -343,52 +319,5 @@ public class ShadowJarPlugin implements Plugin<Project> {
         VersionRecommendationsExtension versionRecommendations =
                 project.getRootProject().getExtensions().getByType(VersionRecommendationsExtension.class);
         versionRecommendations.excludeConfigurations(configuration.getName());
-    }
-
-    private static Provider<Set<String>> scanJarsForPaths(FileCollection jars) {
-        return jars.getElements().map(locations -> locations.stream()
-                .flatMap(location -> {
-                    File jar = location.getAsFile();
-                    try (JarFile jarFile = new JarFile(jar)) {
-                        return Collections.list(jarFile.entries()).stream()
-                                .filter(entry -> !entry.isDirectory())
-                                .map(ZipEntry::getName)
-                                .peek(path -> log.debug("Jar '{}' contains entry '{}'", jar.getName(), path))
-                                .peek(path -> Preconditions.checkState(
-                                        !path.startsWith("/"), "Unexpected absolute path '%s' in jar '%s'", path, jar));
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("Could not open jar file", e);
-                    }
-                })
-                .collect(Collectors.toSet()));
-    }
-
-    private static Set<String> computeRelocatablePaths(Set<String> pathsInJars) {
-        // For multi-release JARs (e.g., META-INF/versions/9/com/foo/Bar.class), we need to add the
-        // unprefixed path (com/foo/Bar.class) to the relocatable set. This ensures that bytecode references
-        // to com.foo.Bar are properly relocated, even though the actual file path relocation is handled by
-        // ShadowCopyAction which temporarily removes the prefix before calling relocatePath. See:
-        // https://github.com/GradleUp/shadow/blob/9.2.2/src/main/kotlin/com/github/jengelman/gradle/plugins/shadow/tasks/ShadowCopyAction.kt#L230-L233
-        Set<String> multiReleaseStuff = pathsInJars.stream()
-                .flatMap(ShadowJarPlugin::extractMultiReleasePath)
-                .collect(Collectors.toSet());
-
-        return Stream.concat(pathsInJars.stream(), multiReleaseStuff.stream())
-                .filter(path -> !path.equals("META-INF/MANIFEST.MF")) // don't relocate this!
-                .filter(path -> !path.startsWith(SERVICE_PROVIDER_PREFIX)) // service providers remain in the root
-                .collect(Collectors.toSet());
-    }
-
-    /*
-        Returns the path without the multi-release prefix e.g.
-        'com/foo/Bar.class' from 'META-INF/versions/9/com/foo/Bar.class'.
-    */
-    private static Stream<String> extractMultiReleasePath(String input) {
-        Matcher matcher = MULTIRELEASE_JAR_PREFIX.matcher(input);
-        if (matcher.find()) {
-            return Stream.of(input.substring(matcher.end()));
-        } else {
-            return Stream.empty();
-        }
     }
 }
