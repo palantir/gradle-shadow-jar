@@ -128,6 +128,27 @@ class ShadowJarPluginIntegrationSpec {
     }
 
     @Test
+    void at_configuration_time(GradleInvoker gradle, RootProject project) throws IOException {
+        project.buildGradle().append("""
+            dependencies {
+                api 'org.checkerframework:checker-qual:2.10.0'
+
+                shadeTransitively 'com.google.guava:guava:28.2-jre'
+            }
+            """);
+        project.buildGradle().plugins().add("java-library");
+
+        InvocationResult result = runTasksAndCheckSuccess(gradle, "publishNebulaPublicationToTestRepoRepository");
+
+        String output = result.output();
+        int shadowJarTaskIndex = output.indexOf("> Task :shadowJar");
+        int scanningIndex = output.indexOf("IM SCANNING");
+        assertThat(scanningIndex)
+                .as("IM SCANNING should appear after shadowJar task runs")
+                .isGreaterThan(shadowJarTaskIndex);
+    }
+
+    @Test
     void should_not_shade_known_logging_implementations(GradleInvoker gradle, RootProject project, MavenRepo repo) {
         repo.publish(MavenArtifact.builder()
                 .coordinate("dep-that-depends-on:slf4j-log4j12:1")

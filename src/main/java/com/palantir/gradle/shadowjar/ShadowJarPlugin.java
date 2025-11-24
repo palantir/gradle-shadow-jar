@@ -345,6 +345,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
     }
 
     private static Provider<Set<String>> scanJarsForPaths(FileCollection jars) {
+        System.out.println("IM SCANNING");
         return jars.getElements().map(locations -> locations.stream()
                 .flatMap(location -> {
                     File jar = location.getAsFile();
