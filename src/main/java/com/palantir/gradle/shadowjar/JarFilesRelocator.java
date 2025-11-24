@@ -54,7 +54,7 @@ class JarFilesRelocator extends SimpleRelocator {
     }
 
     @Classpath
-    public FileCollection getJars() {
+    public final FileCollection getJars() {
         return jars;
     }
 
