@@ -527,9 +527,9 @@ class ShadowJarPluginIntegrationSpec {
             }
 
             tasks.register('printRuntimeClasspath') {
-                def files = configurations.runtimeClasspath.incoming.artifactView {}.files
-                    doLast {
-                        println files.collect { it.name }
+                def files = configurations.runtimeClasspath.incoming.files
+                doLast {
+                    println files.collect { it.name }
                 }
             }
             """);
