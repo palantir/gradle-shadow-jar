@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.palantir.gradle.versions.VersionRecommendationsExtension;
 import com.palantir.gradle.versions.VersionsLockExtension;
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
@@ -235,7 +236,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
                         .collect(Collectors.toSet()))));
 
         shadowJarProvider.configure(shadowJar -> {
-            shadowJar.getConfigurations().set(shadeTransitively.map(Collections::singletonList));
+            shadowJar.getConfigurations().add(shadeTransitively);
 
             shadowJar.getDependencyFilter().set(shadowingCalculation.map(calc -> {
                 DefaultDependencyFilter filter = new DefaultDependencyFilter(project);
@@ -243,17 +244,20 @@ public class ShadowJarPlugin implements Plugin<Project> {
                 return filter;
             }));
 
-            String prefix = String.join(".", "shadow", project.getGroup().toString(), project.getName())
-                    .replace('-', '_')
-                    .toLowerCase(Locale.US);
+            Provider<String> prefixProvider = project.provider(
+                    () -> String.join(".", "shadow", project.getGroup().toString(), project.getName())
+                            .replace('-', '_')
+                            .toLowerCase(Locale.US));
 
-            Provider<FileCollection> includedDepsProvider = project.provider(shadowJar::getIncludedDependencies);
+            FileCollection includedDeps = shadowJar.getIncludedDependencies();
 
-            Provider<Set<String>> pathsInJars = includedDepsProvider.map(ShadowJarPlugin::scanJarsForPaths);
+            Provider<Set<String>> pathsInJars = ShadowJarPlugin.scanJarsForPaths(includedDeps);
 
             Provider<Set<String>> relocatablePaths = pathsInJars.map(ShadowJarPlugin::computeRelocatablePaths);
 
-            shadowJar.getRelocators().add(new JarFilesRelocator(relocatablePaths, prefix + "."));
+            shadowJar
+                    .getRelocators()
+                    .add(prefixProvider.map(prefix -> new JarFilesRelocator(relocatablePaths, prefix + ".")));
 
             shadowJar.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
         });
@@ -340,9 +344,10 @@ public class ShadowJarPlugin implements Plugin<Project> {
         versionRecommendations.excludeConfigurations(configuration.getName());
     }
 
-    private static Set<String> scanJarsForPaths(FileCollection jars) {
-        return jars.getFiles().stream()
-                .flatMap(jar -> {
+    private static Provider<Set<String>> scanJarsForPaths(FileCollection jars) {
+        return jars.getElements().map(locations -> locations.stream()
+                .flatMap(location -> {
+                    File jar = location.getAsFile();
                     try (JarFile jarFile = new JarFile(jar)) {
                         return Collections.list(jarFile.entries()).stream()
                                 .filter(entry -> !entry.isDirectory())
@@ -354,7 +359,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
                         throw new UncheckedIOException("Could not open jar file", e);
                     }
                 })
-                .collect(Collectors.toSet());
+                .collect(Collectors.toSet()));
     }
 
     private static Set<String> computeRelocatablePaths(Set<String> pathsInJars) {
