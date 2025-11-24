@@ -236,6 +236,9 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     .add(prefixProvider.map(
                             prefix -> new JarFilesRelocator(prefix + ".", shadowJar.getIncludedDependencies())));
 
+            // Even thought this is supposed to be the default without this explicitly set we were seeing duplicate
+            // files (same as if was set to DuplicatesStrategy.INCLUDE). Explicitly setting it so it doesn't change
+            // underneath us
             shadowJar.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
         });
     }
