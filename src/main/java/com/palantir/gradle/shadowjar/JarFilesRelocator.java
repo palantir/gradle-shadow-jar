@@ -41,12 +41,12 @@ import org.gradle.api.tasks.Classpath;
  * Custom relocator that uses {@code Set} based lookups instead of {@link SimpleRelocator}'s include/exclude pattern
  * matching.
  *
- * <p>We don't use {@link SimpleRelocator}'s include list because it uses {@code SelectorUtils.matchPath()} for every
+ * <p>We don't use {@link SimpleRelocator}'s include list because it uses {@link SelectorUtils#matchPath} for every
  * pattern against every file in the jar, which is {@code O(n*m)} where {@code n = number of files} and
  * {@code m = number of patterns}. This causes a massive performance penalty (e.g., 8 minutes vs 13 seconds for tests).
  *
- * <p>Instead, we compute a {@code Set} of relocatable paths upfront and use {@code O(1)} {@code Set} lookups in
- * {@code canRelocatePath()}.
+ * <p>Instead, we compute a set of relocatable paths upfront and use {@code O(1)} set lookups in
+ * {@link SimpleRelocator#canRelocatePath}.
  */
 @CacheableRelocator
 class JarFilesRelocator extends SimpleRelocator {
