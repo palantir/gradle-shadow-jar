@@ -489,18 +489,18 @@ class ShadowJarPluginIntegrationSpec {
     void shadowJar_should_contain_manifest_entries_added_to_thin_jar_in_tasks(GradleInvoker gradle, RootProject project)
             throws IOException {
         project.buildGradle().append("""
-             dependencies {
-                 shadeTransitively 'org.apiguardian:apiguardian-api:1.1.0'
-             }
+            dependencies {
+                shadeTransitively 'org.apiguardian:apiguardian-api:1.1.0'
+            }
 
-             // This replicates what the 'com.palantir.sls-recommended-dependencies' plugin does
+            // This replicates what the 'com.palantir.sls-recommended-dependencies' plugin does
             tasks.register('addManifestItem'){
-                 doFirst {
-                     jar.manifest.attributes('Foo': 'Bar')
-                 }
-             }
+                doFirst {
+                    jar.manifest.attributes('Foo': 'Bar')
+                }
+            }
 
-             jar.dependsOn addManifestItem
+            jar.dependsOn addManifestItem
             """);
 
         runTasksAndCheckSuccess(gradle, "publishNebulaPublicationToTestRepoRepository");
