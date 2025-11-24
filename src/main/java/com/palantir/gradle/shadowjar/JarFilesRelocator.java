@@ -20,38 +20,33 @@ import com.github.jengelman.gradle.plugins.shadow.relocation.CacheableRelocator;
 import com.github.jengelman.gradle.plugins.shadow.relocation.RelocateClassContext;
 import com.github.jengelman.gradle.plugins.shadow.relocation.RelocatePathContext;
 import com.github.jengelman.gradle.plugins.shadow.relocation.SimpleRelocator;
-import com.google.common.base.Supplier;
-import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import java.util.Set;
-import javax.inject.Inject;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
-import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.Input;
 
 @CacheableRelocator
-abstract class JarFilesRelocator extends SimpleRelocator {
+class JarFilesRelocator extends SimpleRelocator {
     private static final Logger log = Logging.getLogger(JarFilesRelocator.class);
 
     private static final String CLASS_SUFFIX = ".class";
 
-    @Input
-    public abstract SetProperty<String> getRelocatable();
+    private final Set<String> relocatable;
 
-    @Inject
-    public JarFilesRelocator(String shadedPrefix) {
+    JarFilesRelocator(String shadedPrefix, Set<String> relocatable) {
         super("", shadedPrefix, ImmutableList.of(), ImmutableList.of());
+        this.relocatable = relocatable;
     }
 
-    // Memoize the provider value to ensure it's resolved exactly once during task execution.
-    private final Supplier<Set<String>> relocatable =
-            Suppliers.memoize(() -> getRelocatable().get());
+    @Input
+    public Set<String> getRelocatable() {
+        return relocatable;
+    }
 
     @Override
     public boolean canRelocatePath(String path) {
-        return relocatable.get().contains(path + CLASS_SUFFIX)
-                || relocatable.get().contains(path);
+        return relocatable.contains(path + CLASS_SUFFIX) || relocatable.contains(path);
     }
 
     @Override
