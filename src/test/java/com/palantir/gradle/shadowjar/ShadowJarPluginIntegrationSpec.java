@@ -561,7 +561,8 @@ class ShadowJarPluginIntegrationSpec {
         runTasksAndCheckSuccess(gradle, "--build-cache", "shadowJar");
 
         // Clean and run again - shadowJar should be loaded from cache
-        InvocationResult rerun = runTasksAndCheckSuccess(gradle, "--build-cache", "clean", "shadowJar");
+        runTasksAndCheckSuccess(gradle, "clean");
+        InvocationResult rerun = runTasksAndCheckSuccess(gradle, "--build-cache", "shadowJar");
 
         assertThat(rerun).task(":shadowJar").outcome().isEqualTo(TaskOutcome.FROM_CACHE);
     }
