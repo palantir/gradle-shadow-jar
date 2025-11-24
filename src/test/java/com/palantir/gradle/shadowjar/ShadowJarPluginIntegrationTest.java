@@ -51,7 +51,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 @GradlePluginTests
-class ShadowJarPluginIntegrationSpec {
+class ShadowJarPluginIntegrationTest {
     private static final XmlMapper MAPPER = new XmlMapper(new WstxInputFactory(), new WstxOutputFactory());
     private static final String MAVEN_ROOT = "build/repo";
 
