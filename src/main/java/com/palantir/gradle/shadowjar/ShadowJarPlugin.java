@@ -369,7 +369,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
         // ShadowCopyAction which temporarily removes the prefix before calling relocatePath. See:
         // https://github.com/GradleUp/shadow/blob/9.2.2/src/main/kotlin/com/github/jengelman/gradle/plugins/shadow/tasks/ShadowCopyAction.kt#L230-L233
         Set<String> multiReleaseStuff = pathsInJars.stream()
-                .flatMap(ShadowJarPlugin::splitMultiReleasePath)
+                .flatMap(ShadowJarPlugin::extractMultiReleasePath)
                 .collect(Collectors.toSet());
 
         return Stream.concat(pathsInJars.stream(), multiReleaseStuff.stream())
@@ -382,7 +382,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
         Returns the path without the multi-release prefix e.g.
         'com/foo/Bar.class' from 'META-INF/versions/9/com/foo/Bar.class'.
     */
-    private static Stream<String> splitMultiReleasePath(String input) {
+    private static Stream<String> extractMultiReleasePath(String input) {
         Matcher matcher = MULTIRELEASE_JAR_PREFIX.matcher(input);
         if (matcher.find()) {
             return Stream.of(input.substring(matcher.end()));
