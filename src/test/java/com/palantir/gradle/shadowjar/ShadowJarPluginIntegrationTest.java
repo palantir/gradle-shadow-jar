@@ -28,6 +28,7 @@ import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import com.google.common.io.CharStreams;
 import com.palantir.gradle.testing.execution.GradleInvoker;
 import com.palantir.gradle.testing.execution.InvocationResult;
+import com.palantir.gradle.testing.execution.TaskOutcome;
 import com.palantir.gradle.testing.junit.GradlePluginTests;
 import com.palantir.gradle.testing.maven.MavenArtifact;
 import com.palantir.gradle.testing.maven.MavenRepo;
@@ -490,14 +491,9 @@ class ShadowJarPluginIntegrationTest {
                 shadeTransitively 'org.apiguardian:apiguardian-api:1.1.0'
             }
 
-            // This replicates what the 'com.palantir.sls-recommended-dependencies' plugin does
-            tasks.register('addManifestItem'){
-                doFirst {
-                    jar.manifest.attributes('Foo': 'Bar')
-                }
+            tasks.named('jar', Jar).configure { jarTask ->
+                jarTask.manifest.attributes('Foo': 'Bar')
             }
-
-            jar.dependsOn addManifestItem
             """);
 
         runTasksAndCheckSuccess(gradle, "publishNebulaPublicationToTestRepoRepository");
@@ -523,16 +519,17 @@ class ShadowJarPluginIntegrationTest {
                 shadeTransitively 'org.slf4j:slf4j-log4j12:1.7.26'
             }
 
-            tasks.register('printRuntimeClasspath'){
+            tasks.register('printRuntimeClasspath') {
+                def files = configurations.runtimeClasspath.incoming.files
                 doLast {
-                    println configurations.runtimeClasspath.incoming.resolutionResult.allDependencies.collect { it }
+                    println files.collect { it.name }
                 }
             }
             """);
 
         InvocationResult result = runTasksAndCheckSuccess(gradle, "printRuntimeClasspath");
 
-        assertThat(result).output().contains("org.slf4j:slf4j-log4j12:1.7.30");
+        assertThat(result).output().contains("slf4j-log4j12-1.7.30.jar");
     }
 
     @Test
@@ -541,6 +538,26 @@ class ShadowJarPluginIntegrationTest {
         project.file("versions.props").createEmpty();
 
         runTasksAndCheckSuccess(gradle, "checkUnusedConstraints");
+    }
+
+    @Test
+    void shadowJar_task_should_be_cacheable(GradleInvoker gradle, RootProject project) {
+        project.buildGradle().append("""
+            dependencies {
+                shadeTransitively 'com.google.guava:guava:28.2-jre'
+            }
+            """);
+
+        writeHelloWorld(project);
+
+        // First run with build cache enabled
+        runTasksAndCheckSuccess(gradle, "--build-cache", "shadowJar");
+
+        // Clean and run again - shadowJar should be loaded from cache
+        runTasksAndCheckSuccess(gradle, "clean");
+        InvocationResult rerun = runTasksAndCheckSuccess(gradle, "--build-cache", "shadowJar");
+
+        assertThat(rerun).task(":shadowJar").outcome().isEqualTo(TaskOutcome.FROM_CACHE);
     }
 
     private Set<String> jarEntryNames(RootProject project) {
@@ -588,7 +605,7 @@ class ShadowJarPluginIntegrationTest {
     }
 
     private InvocationResult runTasksAndCheckSuccess(GradleInvoker gradle, String... args) {
-        String[] allArgs = Stream.concat(Stream.of("--warning-mode=none", "--write-locks"), Arrays.stream(args))
+        String[] allArgs = Stream.concat(Stream.of("--warning-mode=none", "writeVersionsLock"), Arrays.stream(args))
                 .toArray(String[]::new);
         InvocationResult executionResult = gradle.withArgs(allArgs).buildsSuccessfully();
         System.out.println(executionResult.output());

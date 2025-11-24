@@ -18,12 +18,13 @@ package com.palantir.gradle.shadowjar;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
+import com.github.jengelman.gradle.plugins.shadow.internal.DefaultDependencyFilter;
+import com.github.jengelman.gradle.plugins.shadow.relocation.Relocator;
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.palantir.gradle.versions.VersionRecommendationsExtension;
 import com.palantir.gradle.versions.VersionsLockExtension;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -106,7 +107,6 @@ public class ShadowJarPlugin implements Plugin<Project> {
         dependOnJarTaskInOrderToTriggerTasksAddingManifestAttributes(project, shadowJarProvider);
     }
 
-    @SuppressWarnings("TaskDependsOn")
     private void setupShadowJarToShadeTheCorrectDependencies(
             Project project, TaskProvider<ShadowJar> shadowJarProvider) {
         NamedDomainObjectProvider<Configuration> shadeTransitively = project.getConfigurations()
@@ -218,26 +218,26 @@ public class ShadowJarPlugin implements Plugin<Project> {
                         .map(project.getDependencies()::create)
                         .collect(Collectors.toSet()))));
 
-        TaskProvider<ShadowJarConfigurationTask> shadowJarConfigurationTask = project.getTasks()
-                .register("relocateShadowJar", ShadowJarConfigurationTask.class, relocateTask -> {
-                    relocateTask.getShadowJar().set(shadowJarProvider.get());
-
-                    relocateTask.getPrefix().set(project.provider(() -> String.join(
-                                    ".", "shadow", project.getGroup().toString(), project.getName())
-                            .replace('-', '_')
-                            .toLowerCase(Locale.US)));
-
-                    relocateTask.getAcceptedDependencies().set(project.provider(() -> shadowingCalculation
-                            .get()
-                            .acceptedShadedModules()));
-                });
-
         shadowJarProvider.configure(shadowJar -> {
-            shadowJar.dependsOn(shadowJarConfigurationTask);
-            shadowJar.getConfigurations().set(shadeTransitively.map(Collections::singletonList));
+            shadowJar.getConfigurations().add(shadeTransitively);
+
+            shadowJar.getDependencyFilter().set(shadowingCalculation.map(calc -> {
+                DefaultDependencyFilter filter = new DefaultDependencyFilter(project);
+                filter.include(calc.acceptedShadedModules()::contains);
+                return filter;
+            }));
+
+            Provider<Relocator> relocator = project.provider(
+                            () -> String.join(".", "shadow", project.getGroup().toString(), project.getName())
+                                    .replace('-', '_')
+                                    .toLowerCase(Locale.US))
+                    .map(prefix -> new JarFilesRelocator(prefix + ".", shadowJar.getIncludedDependencies()));
+
+            shadowJar.getRelocators().add(relocator);
 
             // Even thought this is supposed to be the default without this explicitly set we were seeing duplicate
-            // files (same as if was set to DuplicatesStrategy.INCLUDE
+            // files (same as if was set to DuplicatesStrategy.INCLUDE). Explicitly setting it so it doesn't change
+            // underneath us
             shadowJar.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
         });
     }
