@@ -29,7 +29,6 @@ import com.google.common.io.CharStreams;
 import com.palantir.gradle.testing.execution.GradleInvoker;
 import com.palantir.gradle.testing.execution.InvocationResult;
 import com.palantir.gradle.testing.execution.TaskOutcome;
-import com.palantir.gradle.testing.junit.DisabledConfigurationCache;
 import com.palantir.gradle.testing.junit.GradlePluginTests;
 import com.palantir.gradle.testing.maven.MavenArtifact;
 import com.palantir.gradle.testing.maven.MavenRepo;
@@ -484,7 +483,6 @@ class ShadowJarPluginIntegrationSpec {
         project.file("build/libs/asd-fgh-2-thin.jar").assertThat().exists();
     }
 
-    @DisabledConfigurationCache(reason = "The `addManifestItem` task is not configuration cache compatible")
     @Test
     void shadowJar_should_contain_manifest_entries_added_to_thin_jar_in_tasks(GradleInvoker gradle, RootProject project)
             throws IOException {
@@ -493,14 +491,9 @@ class ShadowJarPluginIntegrationSpec {
                 shadeTransitively 'org.apiguardian:apiguardian-api:1.1.0'
             }
 
-            // This replicates what the 'com.palantir.sls-recommended-dependencies' plugin does
-            tasks.register('addManifestItem'){
-                doFirst {
-                    jar.manifest.attributes('Foo': 'Bar')
-                }
+            tasks.named('jar', Jar).configure { jarTask ->
+                jarTask.manifest.attributes('Foo': 'Bar')
             }
-
-            jar.dependsOn addManifestItem
             """);
 
         runTasksAndCheckSuccess(gradle, "publishNebulaPublicationToTestRepoRepository");
