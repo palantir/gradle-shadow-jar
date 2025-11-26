@@ -29,6 +29,7 @@ import com.google.common.io.CharStreams;
 import com.palantir.gradle.testing.execution.GradleInvoker;
 import com.palantir.gradle.testing.execution.InvocationResult;
 import com.palantir.gradle.testing.execution.TaskOutcome;
+import com.palantir.gradle.testing.junit.DisabledConfigurationCache;
 import com.palantir.gradle.testing.junit.GradlePluginTests;
 import com.palantir.gradle.testing.maven.MavenArtifact;
 import com.palantir.gradle.testing.maven.MavenRepo;
@@ -558,6 +559,19 @@ class ShadowJarPluginIntegrationTest {
         InvocationResult rerun = runTasksAndCheckSuccess(gradle, "--build-cache", "shadowJar");
 
         assertThat(rerun).task(":shadowJar").outcome().isEqualTo(TaskOutcome.FROM_CACHE);
+    }
+
+    @Test
+    @DisabledConfigurationCache(reason = "Configuration-time failure: both initial and dry-run will fail")
+    void should_fail_when_consistent_versions_plugin_is_not_applied(GradleInvoker gradle, RootProject project) {
+        project.buildGradle().createEmpty();
+        project.buildGradle().plugins().add("com.palantir.shadow-jar");
+
+        InvocationResult result = gradle.withArgs("help").buildsWithFailure();
+
+        assertThat(result)
+                .output()
+                .contains("You must apply com.palantir.consistent-versions to use the com.palantir.shadow-jar plugin");
     }
 
     private Set<String> jarEntryNames(RootProject project) {
