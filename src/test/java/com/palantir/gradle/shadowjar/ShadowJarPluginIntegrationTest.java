@@ -562,7 +562,7 @@ class ShadowJarPluginIntegrationTest {
     }
 
     @Test
-    @DisabledConfigurationCache(reason = "Configuration-time failure: both initial and dry-run will fail")
+    @DisabledConfigurationCache(reason = "Expected configuration-time failure: both initial and dry-run will fail")
     void should_fail_when_consistent_versions_plugin_is_not_applied(GradleInvoker gradle, RootProject project) {
         project.buildGradle().createEmpty();
         project.buildGradle().plugins().add("com.palantir.shadow-jar");
