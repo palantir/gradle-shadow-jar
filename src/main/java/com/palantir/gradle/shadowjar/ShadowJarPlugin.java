@@ -75,10 +75,12 @@ public class ShadowJarPlugin implements Plugin<Project> {
                     "You must be using Gradle 7 or above to use the com.palantir.shadow-jar plugin");
         }
 
-        if (!project.getRootProject().getPlugins().hasPlugin("com.palantir.consistent-versions")) {
-            throw new IllegalStateException(
-                    "You must apply com.palantir.consistent-versions to use the com.palantir.shadow-jar plugin");
-        }
+        project.afterEvaluate(_p -> {
+            if (!project.getRootProject().getPlugins().hasPlugin("com.palantir.consistent-versions")) {
+                throw new IllegalStateException(
+                        "You must apply com.palantir.consistent-versions to use the com.palantir.shadow-jar plugin");
+            }
+        });
 
         project.getPluginManager().apply(JavaPlugin.class);
         project.getPluginManager().apply(ShadowPlugin.class);
@@ -312,14 +314,18 @@ public class ShadowJarPlugin implements Plugin<Project> {
     }
 
     private static void lockConfiguration(Project project, NamedDomainObjectProvider<Configuration> configuration) {
-        VersionsLockExtension versionsLock = project.getExtensions().getByType(VersionsLockExtension.class);
-        versionsLock.production(scope -> scope.from(configuration.getName()));
+        project.getPluginManager().withPlugin("com.palantir.consistent-versions", _plugin -> {
+            VersionsLockExtension versionsLock = project.getExtensions().getByType(VersionsLockExtension.class);
+            versionsLock.production(scope -> scope.from(configuration.getName()));
+        });
     }
 
     private static void excludeConfigurationFromVersionsPropsInjection(
             Project project, NamedDomainObjectProvider<Configuration> configuration) {
-        VersionRecommendationsExtension versionRecommendations =
-                project.getRootProject().getExtensions().getByType(VersionRecommendationsExtension.class);
-        versionRecommendations.excludeConfigurations(configuration.getName());
+        project.getRootProject().getPluginManager().withPlugin("com.palantir.consistent-versions", _plugin -> {
+            VersionRecommendationsExtension versionRecommendations =
+                    project.getRootProject().getExtensions().getByType(VersionRecommendationsExtension.class);
+            versionRecommendations.excludeConfigurations(configuration.getName());
+        });
     }
 }
