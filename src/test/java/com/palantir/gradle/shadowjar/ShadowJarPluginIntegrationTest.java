@@ -560,6 +560,18 @@ class ShadowJarPluginIntegrationTest {
         assertThat(rerun).task(":shadowJar").outcome().isEqualTo(TaskOutcome.FROM_CACHE);
     }
 
+    @Test
+    void should_fail_when_consistent_versions_plugin_is_not_applied(GradleInvoker gradle, RootProject project) {
+        project.buildGradle().createEmpty();
+        project.buildGradle().plugins().add("com.palantir.shadow-jar");
+
+        InvocationResult result = gradle.withArgs("help").buildsWithFailure();
+
+        assertThat(result)
+                .output()
+                .contains("You must apply com.palantir.consistent-versions to use the com.palantir.shadow-jar plugin");
+    }
+
     private Set<String> jarEntryNames(RootProject project) {
         JarFile shadowJar = shadowJarFile(project);
         return shadowJar.stream().map(ZipEntry::getName).collect(Collectors.toSet());
