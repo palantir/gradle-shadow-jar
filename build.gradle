@@ -103,4 +103,5 @@ jdks {
 
 gradleTestUtils {
     configurationCacheEnabled = true
+    gradleVersions = ['8.14.3']
 }
