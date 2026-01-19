@@ -314,7 +314,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
     }
 
     private static void lockConfiguration(Project project, NamedDomainObjectProvider<Configuration> configuration) {
-        project.getPluginManager().withPlugin("com.palantir.consistent-versions", _plugin -> {
+        project.getRootProject().getPluginManager().withPlugin("com.palantir.consistent-versions", _plugin -> {
             VersionsLockExtension versionsLock = project.getExtensions().getByType(VersionsLockExtension.class);
             versionsLock.production(scope -> scope.from(configuration.getName()));
         });
