@@ -32,7 +32,9 @@ import com.palantir.gradle.testing.execution.TaskOutcome;
 import com.palantir.gradle.testing.junit.GradlePluginTests;
 import com.palantir.gradle.testing.maven.MavenArtifact;
 import com.palantir.gradle.testing.maven.MavenRepo;
+import com.palantir.gradle.testing.project.GradleProject;
 import com.palantir.gradle.testing.project.RootProject;
+import com.palantir.gradle.testing.project.SubProject;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
@@ -66,18 +68,22 @@ class ShadowJarPluginIntegrationTest {
                 .add("nebula.maven-nebula-publish")
                 .add("com.palantir.shadow-jar");
         rootProject.buildGradle().append("""
-            group = 'com.palantir.bar-baz_quux'
-            version = '2'
+            allprojects {
+                group = 'com.palantir.bar-baz_quux'
+                version = '2'
 
-            repositories {
-                mavenCentral()
-            }
-
-            publishing {
                 repositories {
-                    maven {
-                        name 'testRepo'
-                        url "$projectDir/%s"
+                    mavenCentral()
+                }
+
+                plugins.withId('nebula.maven-nebula-publish') {
+                    publishing {
+                        repositories {
+                            maven {
+                                name 'testRepo'
+                                url "$rootDir/%s"
+                            }
+                        }
                     }
                 }
             }
@@ -561,6 +567,40 @@ class ShadowJarPluginIntegrationTest {
     }
 
     @Test
+    void subproject_should_not_shade_transitive_dependency_that_is_in_implementation(
+            GradleInvoker gradle, RootProject project, SubProject shadowedLib) {
+        project.file("versions.props").append("""
+            com.google.guava:guava = 28.2-jre
+            """);
+
+        // Subproject setup
+        shadowedLib.buildGradle().plugins().add("nebula.maven-nebula-publish").add("com.palantir.shadow-jar");
+
+        shadowedLib.buildGradle().append("""
+            dependencies {
+                // guava:28.2-jre transitively brings in checker-qual:2.10.0
+                shadeTransitively 'com.google.guava:guava'
+
+                // checker-qual:3.42.0 directly - newer than what guava brings
+                implementation 'org.checkerframework:checker-qual:3.42.0'
+            }
+            """);
+
+        runTasksAndCheckSuccess(gradle, ":shadowedLib:publishNebulaPublicationToTestRepoRepository");
+
+        Set<String> jarEntryNames = jarEntryNames(shadowedLib, "shadowedLib");
+
+        // checker-qual classes should NOT be shaded - it exists in the unshaded configuration
+        List<String> shadedCheckerQualClasses = jarEntryNames.stream()
+                .filter(e -> e.contains("shadow/") && e.contains("checkerframework"))
+                .collect(Collectors.toList());
+
+        assertThat(shadedCheckerQualClasses)
+                .as("checker-qual should not be shaded since it's in the unshaded (implementation) configuration")
+                .isEmpty();
+    }
+
+    @Test
     void should_fail_when_consistent_versions_plugin_is_not_applied(GradleInvoker gradle, RootProject project) {
         project.buildGradle().createEmpty();
         project.buildGradle().plugins().add("com.palantir.shadow-jar");
@@ -572,13 +612,26 @@ class ShadowJarPluginIntegrationTest {
                 .contains("You must apply com.palantir.consistent-versions to use the com.palantir.shadow-jar plugin");
     }
 
-    private Set<String> jarEntryNames(RootProject project) {
-        JarFile shadowJar = shadowJarFile(project);
-        return shadowJar.stream().map(ZipEntry::getName).collect(Collectors.toSet());
+    private Set<String> jarEntryNames(GradleProject project) {
+        return jarEntryNames(project, "asd-fgh");
     }
 
-    private JarFile shadowJarFile(RootProject project) {
-        Path jarPath = project.path().resolve(MAVEN_ROOT + "/com/palantir/bar-baz_quux/asd-fgh/2/asd-fgh-2.jar");
+    private Set<String> jarEntryNames(GradleProject project, String artifactName) {
+        try (JarFile shadowJar = shadowJarFile(project, artifactName)) {
+            return shadowJar.stream().map(ZipEntry::getName).collect(Collectors.toSet());
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read shadow jar entries", e);
+        }
+    }
+
+    private JarFile shadowJarFile(GradleProject project) {
+        return shadowJarFile(project, "asd-fgh");
+    }
+
+    private JarFile shadowJarFile(GradleProject project, String artifactName) {
+        Path jarPath = project.rootProject()
+                .path()
+                .resolve(MAVEN_ROOT + "/com/palantir/bar-baz_quux/" + artifactName + "/2/" + artifactName + "-2.jar");
         try {
             return new JarFile(jarPath.toFile());
         } catch (IOException e) {
