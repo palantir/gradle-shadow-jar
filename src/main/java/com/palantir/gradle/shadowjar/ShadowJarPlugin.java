@@ -171,11 +171,14 @@ public class ShadowJarPlugin implements Plugin<Project> {
             });
         });
 
-        project.getExtensions().getByType(SourceSetContainer.class).configureEach(sourceSet -> Stream.of(
-                        sourceSet.getCompileClasspathConfigurationName(),
-                        sourceSet.getRuntimeClasspathConfigurationName())
-                .map(project.getConfigurations()::named)
-                .forEach(confProvider -> confProvider.configure(conf -> conf.extendsFrom(shadeTransitively.get()))));
+        project.getExtensions()
+                .getByType(SourceSetContainer.class)
+                .configureEach(sourceSet -> Stream.of(
+                                sourceSet.getCompileClasspathConfigurationName(),
+                                sourceSet.getRuntimeClasspathConfigurationName())
+                        .map(project.getConfigurations()::named)
+                        .forEach(confProvider ->
+                                confProvider.configure(conf -> conf.extendsFrom(shadeTransitively.get()))));
 
         Provider<ShadowingCalculation> shadowingCalculation =
                 shadeTransitively.zip(unshaded, (shadeTransitivelyConf, unshadedConf) -> {
@@ -277,8 +280,10 @@ public class ShadowJarPlugin implements Plugin<Project> {
     private static void ensureShadowJarHasDefaultClassifierThatDoesNotClashWithTheRegularJarTask(
             Project project, TaskProvider<ShadowJar> shadowJarProvider) {
 
-        project.getTasks().withType(Jar.class).named("jar").configure(jar -> jar.getArchiveClassifier()
-                .set("thin"));
+        project.getTasks()
+                .withType(Jar.class)
+                .named("jar")
+                .configure(jar -> jar.getArchiveClassifier().set("thin"));
 
         shadowJarProvider.configure(
                 shadowJar -> shadowJar.getArchiveClassifier().set((String) null));
