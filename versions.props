@@ -21,4 +21,4 @@ org.junit.vintage:* = 6.0.1
 # gradlePluginForTesting
 org.unbroken-dome.test-sets:org.unbroken-dome.test-sets.gradle.plugin = 4.1.0
 com.palantir.gradle.consistentversions:gradle-consistent-versions = 3.7.0
-com.netflix.nebula:nebula-publishing-plugin = 17.2.1
+com.netflix.nebula:nebula-publishing-plugin = 23.0.0
