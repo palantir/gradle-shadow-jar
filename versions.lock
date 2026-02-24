@@ -24,7 +24,7 @@ com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 c
 
 com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
-com.gradleup.shadow:shadow-gradle-plugin:9.2.2 (1 constraints: 0f052036)
+com.gradleup.shadow:shadow-gradle-plugin:9.3.1 (1 constraints: 0f052236)
 
 com.palantir.gradle.consistentversions:gradle-consistent-versions:3.7.0 (1 constraints: 0c050f36)
 
@@ -32,7 +32,9 @@ com.palantir.gradle.failure-reports:gradle-failure-reports-exceptions:1.2.0 (1 c
 
 com.palantir.gradle.idea-configuration:gradle-idea-configuration:0.7.0 (1 constraints: bb1b2646)
 
-commons-io:commons-io:2.21.0 (3 constraints: 69302d43)
+commons-codec:commons-codec:1.20.0 (2 constraints: 2021e73d)
+
+commons-io:commons-io:2.21.0 (3 constraints: 6a307743)
 
 one.util:streamex:0.8.4 (1 constraints: c01b2d46)
 
@@ -40,9 +42,9 @@ org.apache.ant:ant:1.10.15 (1 constraints: 8d11faf3)
 
 org.apache.ant:ant-launcher:1.10.15 (1 constraints: c6086496)
 
-org.apache.logging.log4j:log4j-api:2.25.2 (1 constraints: be0e2576)
+org.apache.logging.log4j:log4j-api:2.25.3 (1 constraints: bf0e2676)
 
-org.apache.logging.log4j:log4j-core:2.25.2 (1 constraints: 601187e2)
+org.apache.logging.log4j:log4j-core:2.25.3 (1 constraints: 611188e2)
 
 org.apache.maven:maven-api-annotations:4.0.0-rc-3 (1 constraints: 510e6162)
 
@@ -62,19 +64,13 @@ org.jdom:jdom2:2.0.6.1 (1 constraints: 8c1102f4)
 
 org.jetbrains:annotations:26.0.2 (3 constraints: ec394310)
 
-org.jetbrains.kotlin:kotlin-metadata-jvm:2.2.20 (1 constraints: 5b1178e2)
+org.jetbrains.kotlin:kotlin-metadata-jvm:2.3.0 (1 constraints: 2a111ed1)
 
-org.jetbrains.kotlin:kotlin-stdlib:2.2.20 (3 constraints: 35334479)
+org.jetbrains.kotlin:kotlin-stdlib:2.3.0 (3 constraints: 04330b55)
 
 org.jspecify:jspecify:1.0.0 (9 constraints: 5391e9da)
 
-org.ow2.asm:asm:9.8 (2 constraints: 8b124036)
-
-org.ow2.asm:asm-commons:9.8 (1 constraints: d81014af)
-
-org.ow2.asm:asm-tree:9.8 (1 constraints: ec09e5a5)
-
-org.vafer:jdependency:2.13 (1 constraints: fd10f5bf)
+org.vafer:jdependency:2.14 (1 constraints: fe10f6bf)
 
 
 
@@ -139,8 +135,6 @@ com.palantir.tritium:tritium-registry:0.115.0 (1 constraints: 69059b40)
 com.perforce:p4java:2015.2.1365273 (1 constraints: b7117b2f)
 
 com.trilead:trilead-ssh2:1.0.0-build220 (2 constraints: a0256277)
-
-commons-codec:commons-codec:1.9 (1 constraints: c90f9e71)
 
 commons-logging:commons-logging:1.2 (1 constraints: c20f9771)
 
