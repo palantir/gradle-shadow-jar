@@ -62,7 +62,7 @@ org.immutables:value:2.11.7 (1 constraints: 3d05393b)
 
 org.jdom:jdom2:2.0.6.1 (1 constraints: 8c1102f4)
 
-org.jetbrains:annotations:26.0.2 (3 constraints: ec394310)
+org.jetbrains:annotations:26.1.0 (3 constraints: eb39e90f)
 
 org.jetbrains.kotlin:kotlin-metadata-jvm:2.3.0 (1 constraints: 2a111ed1)
 
@@ -108,13 +108,13 @@ com.netflix.nebula:nebula-publishing-plugin:17.2.1 (1 constraints: 3d05513b)
 
 com.netflix.nebula:nebula-test:10.6.2 (1 constraints: 9c18268f)
 
-com.palantir.gradle.plugintesting:configuration-cache-spec:0.59.0 (1 constraints: 40054e3b)
+com.palantir.gradle.plugintesting:configuration-cache-spec:0.60.0 (1 constraints: 3805373b)
 
-com.palantir.gradle.plugintesting:discover-tests-cli:0.59.0 (1 constraints: 40054e3b)
+com.palantir.gradle.plugintesting:discover-tests-cli:0.60.0 (1 constraints: 3805373b)
 
-com.palantir.gradle.plugintesting:gradle-plugin-testing-junit:0.59.0 (1 constraints: 40054e3b)
+com.palantir.gradle.plugintesting:gradle-plugin-testing-junit:0.60.0 (1 constraints: 3805373b)
 
-com.palantir.gradle.plugintesting:plugin-testing-core:0.59.0 (1 constraints: 40054e3b)
+com.palantir.gradle.plugintesting:plugin-testing-core:0.60.0 (1 constraints: 3805373b)
 
 com.palantir.safe-logging:logger:3.9.0 (1 constraints: a40c4f09)
 
