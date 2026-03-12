@@ -541,7 +541,7 @@ class ShadowJarPluginIntegrationTest {
     @SuppressWarnings("for-rollout:deprecation")
     @Test
     void checkUnusedConstraints_runs_correctly(GradleInvoker gradle, RootProject project) {
-        project.gradlePropertiesFile().appendProperty("ignoreLockFile", "true");
+        project.gradlePropertiesFile().setProperty("ignoreLockFile", "true");
         project.file("versions.props").createEmpty();
 
         runTasksAndCheckSuccess(gradle, "checkUnusedConstraints");
