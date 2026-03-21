@@ -15,7 +15,7 @@ com.google.code.findbugs:jsr305 = 3.0.2
 com.google.errorprone:error_prone_annotations = 2.11.0
 org.checkerframework:checker-qual = 3.52.0
 org.junit.jupiter:* = 6.0.1
-org.junit.platform:* = 6.0.1
+org.junit.platform:* = 6.0.3
 org.junit.vintage:* = 6.0.1
 
 # gradlePluginForTesting
