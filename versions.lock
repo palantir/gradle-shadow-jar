@@ -62,7 +62,7 @@ org.immutables:value:2.11.7 (1 constraints: 3d05393b)
 
 org.jdom:jdom2:2.0.6.1 (1 constraints: 8c1102f4)
 
-org.jetbrains:annotations:26.1.0 (3 constraints: eb39e90f)
+org.jetbrains:annotations:26.1.0 (3 constraints: ea39c00f)
 
 org.jetbrains.kotlin:kotlin-metadata-jvm:2.3.0 (1 constraints: 2a111ed1)
 
@@ -122,15 +122,15 @@ com.palantir.safe-logging:logger-slf4j:3.9.0 (1 constraints: 070e6e42)
 
 com.palantir.safe-logging:logger-spi:3.9.0 (2 constraints: 1d1e0c7c)
 
-com.palantir.safe-logging:preconditions:3.11.0 (2 constraints: 621dae11)
+com.palantir.safe-logging:preconditions:3.12.0 (2 constraints: 631db111)
 
-com.palantir.safe-logging:safe-logging:3.11.0 (6 constraints: 2451d9a4)
+com.palantir.safe-logging:safe-logging:3.12.0 (6 constraints: 265133a5)
 
 com.palantir.tracing:tracing:6.29.0 (1 constraints: 4305663b)
 
 com.palantir.tracing:tracing-api:6.29.0 (1 constraints: d90c3616)
 
-com.palantir.tritium:tritium-registry:0.124.0 (1 constraints: 69059c40)
+com.palantir.tritium:tritium-registry:0.125.0 (1 constraints: 6a059f40)
 
 com.perforce:p4java:2015.2.1365273 (1 constraints: b7117b2f)
 
