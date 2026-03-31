@@ -538,7 +538,6 @@ class ShadowJarPluginIntegrationTest {
         assertThat(result).output().contains("slf4j-log4j12-1.7.30.jar");
     }
 
-    @SuppressWarnings("for-rollout:deprecation")
     @Test
     void checkUnusedConstraints_runs_correctly(GradleInvoker gradle, RootProject project) {
         project.gradlePropertiesFile().setProperty("ignoreLockFile", "true");
