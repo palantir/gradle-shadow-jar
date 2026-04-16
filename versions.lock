@@ -34,7 +34,7 @@ com.palantir.gradle.idea-configuration:gradle-idea-configuration:0.7.0 (1 constr
 
 commons-codec:commons-codec:1.20.0 (2 constraints: 2021e73d)
 
-commons-io:commons-io:2.21.0 (3 constraints: 6a307743)
+commons-io:commons-io:2.21.0 (3 constraints: 63306343)
 
 one.util:streamex:0.8.4 (1 constraints: c01b2d46)
 
@@ -108,13 +108,13 @@ com.netflix.nebula:nebula-publishing-plugin:17.2.1 (1 constraints: 3d05513b)
 
 com.netflix.nebula:nebula-test:10.6.2 (1 constraints: 9c18268f)
 
-com.palantir.gradle.plugintesting:configuration-cache-spec:0.66.0 (1 constraints: 3e05493b)
+com.palantir.gradle.plugintesting:configuration-cache-spec:0.67.0 (1 constraints: 3f054c3b)
 
-com.palantir.gradle.plugintesting:discover-tests-cli:0.66.0 (1 constraints: 3e05493b)
+com.palantir.gradle.plugintesting:discover-tests-cli:0.67.0 (1 constraints: 3f054c3b)
 
-com.palantir.gradle.plugintesting:gradle-plugin-testing-junit:0.66.0 (1 constraints: 3e05493b)
+com.palantir.gradle.plugintesting:gradle-plugin-testing-junit:0.67.0 (1 constraints: 3f054c3b)
 
-com.palantir.gradle.plugintesting:plugin-testing-core:0.66.0 (1 constraints: 3e05493b)
+com.palantir.gradle.plugintesting:plugin-testing-core:0.67.0 (1 constraints: 3f054c3b)
 
 com.palantir.safe-logging:logger:3.13.0 (1 constraints: cf0c0e16)
 
