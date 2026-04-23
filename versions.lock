@@ -34,7 +34,7 @@ com.palantir.gradle.idea-configuration:gradle-idea-configuration:0.7.0 (1 constr
 
 commons-codec:commons-codec:1.20.0 (2 constraints: 2021e73d)
 
-commons-io:commons-io:2.21.0 (3 constraints: 63306343)
+commons-io:commons-io:2.22.0 (3 constraints: 6430df43)
 
 one.util:streamex:0.8.4 (1 constraints: c01b2d46)
 
