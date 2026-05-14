@@ -124,7 +124,7 @@ com.palantir.safe-logging:logger-spi:3.14.0 (2 constraints: 751eacb0)
 
 com.palantir.safe-logging:preconditions:3.14.0 (2 constraints: 911d8d26)
 
-com.palantir.safe-logging:safe-logging:3.14.0 (6 constraints: da51c085)
+com.palantir.safe-logging:safe-logging:3.15.0 (6 constraints: db51a186)
 
 com.palantir.tracing:tracing:6.34.0 (1 constraints: 3f055b3b)
 
