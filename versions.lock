@@ -58,7 +58,7 @@ org.codehaus.plexus:plexus-xml:4.1.0 (1 constraints: 2a1122d1)
 
 org.codehaus.woodstox:stax2-api:4.2.2 (3 constraints: f532881c)
 
-org.immutables:value:2.12.1 (1 constraints: 3805363b)
+org.immutables:value:2.12.2 (1 constraints: 3905373b)
 
 org.jdom:jdom2:2.0.6.1 (1 constraints: 8c1102f4)
 
