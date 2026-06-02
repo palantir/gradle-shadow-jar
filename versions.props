@@ -13,7 +13,7 @@ commons-io:commons-io = 2.22.0
 # conflict resolution
 com.google.code.findbugs:jsr305 = 3.0.2
 com.google.errorprone:error_prone_annotations = 2.11.0
-org.checkerframework:checker-qual = 4.1.0
+org.checkerframework:checker-qual = 4.2.0
 org.junit.jupiter:* = 6.1.0
 org.junit.platform:* = 6.1.0
 org.junit.vintage:* = 6.1.0
