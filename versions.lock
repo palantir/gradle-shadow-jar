@@ -6,7 +6,7 @@ com.fasterxml.jackson.core:jackson-core:2.21.4 (4 constraints: 94565607)
 
 com.fasterxml.jackson.core:jackson-databind:2.21.4 (3 constraints: 0c445d24)
 
-com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.21.4 (3 constraints: c83b95db)
+com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.21.4 (4 constraints: fa566ab5)
 
 com.fasterxml.jackson.datatype:jackson-datatype-guava:2.21.4 (2 constraints: 8e366c95)
 
@@ -18,7 +18,7 @@ com.google.errorprone:error_prone_annotations:2.49.0 (8 constraints: b46b0a45)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
-com.google.guava:guava:33.6.0-jre (7 constraints: 9d8fc5f2)
+com.google.guava:guava:33.6.0-jre (8 constraints: 45acd168)
 
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 
@@ -26,11 +26,13 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.gradleup.shadow:shadow-gradle-plugin:9.3.1 (1 constraints: 0f052236)
 
-com.palantir.gradle.consistentversions:gradle-consistent-versions:3.15.0 (1 constraints: 3b05443b)
+com.palantir.gradle.consistentversions:gradle-consistent-versions:3.16.0 (1 constraints: 3c05473b)
 
-com.palantir.gradle.failure-reports:gradle-failure-reports-exceptions:1.2.0 (1 constraints: b71b1c46)
+com.palantir.gradle.failure-reports:gradle-failure-reports-common:1.18.0 (1 constraints: f21c3bc2)
 
-com.palantir.gradle.idea-configuration:gradle-idea-configuration:0.7.0 (1 constraints: bb1b2646)
+com.palantir.gradle.failure-reports:gradle-failure-reports-exceptions:1.18.0 (1 constraints: ee1b1962)
+
+com.palantir.gradle.idea-configuration:gradle-idea-configuration:0.8.0 (1 constraints: bc1b2946)
 
 commons-codec:commons-codec:1.20.0 (2 constraints: 2021e73d)
 
