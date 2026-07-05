@@ -124,15 +124,15 @@ com.palantir.safe-logging:logger-slf4j:3.15.0 (1 constraints: 340e9650)
 
 com.palantir.safe-logging:logger-spi:3.15.0 (2 constraints: 771ee2b0)
 
-com.palantir.safe-logging:preconditions:3.15.0 (2 constraints: 931dc226)
+com.palantir.safe-logging:preconditions:3.16.0 (2 constraints: 941dc526)
 
-com.palantir.safe-logging:safe-logging:3.16.0 (6 constraints: e1514f89)
+com.palantir.safe-logging:safe-logging:3.16.0 (6 constraints: e351aa89)
 
 com.palantir.tracing:tracing:6.36.0 (1 constraints: 4105613b)
 
 com.palantir.tracing:tracing-api:6.36.0 (1 constraints: d70c3116)
 
-com.palantir.tritium:tritium-registry:0.131.0 (1 constraints: 67059740)
+com.palantir.tritium:tritium-registry:0.132.0 (1 constraints: 68059a40)
 
 com.perforce:p4java:2015.2.1365273 (1 constraints: b7117b2f)
 
