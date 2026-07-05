@@ -7,7 +7,7 @@ com.google.guava:guava = 33.6.0-jre
 # Test deps
 com.palantir.tracing:tracing = 6.36.0
 com.palantir.safe-logging:safe-logging = 3.16.0
-com.palantir.tritium:tritium-registry = 0.131.0
+com.palantir.tritium:tritium-registry = 0.132.0
 commons-io:commons-io = 2.22.0
 
 # conflict resolution
