@@ -132,7 +132,7 @@ com.palantir.tracing:tracing:6.38.0 (1 constraints: 4305673b)
 
 com.palantir.tracing:tracing-api:6.38.0 (1 constraints: d90c3716)
 
-com.palantir.tritium:tritium-registry:0.135.0 (1 constraints: 6b05a340)
+com.palantir.tritium:tritium-registry:0.136.0 (1 constraints: 6c05a640)
 
 com.perforce:p4java:2015.2.1365273 (1 constraints: b7117b2f)
 
