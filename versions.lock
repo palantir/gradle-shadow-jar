@@ -14,11 +14,11 @@ com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.22.1 (1 constraints: a51a
 
 com.fasterxml.woodstox:woodstox-core:7.2.0 (2 constraints: c822fe39)
 
-com.google.errorprone:error_prone_annotations:2.49.0 (8 constraints: b46b0a45)
+com.google.errorprone:error_prone_annotations:2.50.0 (8 constraints: ae6bbd3e)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
-com.google.guava:guava:33.6.0-jre (8 constraints: 45acd168)
+com.google.guava:guava:33.7.0-jre (8 constraints: 46aca26a)
 
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 
@@ -70,7 +70,7 @@ org.jetbrains.kotlin:kotlin-metadata-jvm:2.3.0 (1 constraints: 2a111ed1)
 
 org.jetbrains.kotlin:kotlin-stdlib:2.3.0 (3 constraints: 04330b55)
 
-org.jspecify:jspecify:1.0.0 (9 constraints: 5391e9da)
+org.jspecify:jspecify:1.0.1 (9 constraints: 549167dc)
 
 org.vafer:jdependency:2.14 (1 constraints: fe10f6bf)
 
