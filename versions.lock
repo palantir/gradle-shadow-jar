@@ -14,11 +14,11 @@ com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.22.1 (1 constraints: a51a
 
 com.fasterxml.woodstox:woodstox-core:7.2.0 (2 constraints: c822fe39)
 
-com.google.errorprone:error_prone_annotations:2.50.0 (8 constraints: ae6bbd3e)
+com.google.errorprone:error_prone_annotations:2.50.0 (8 constraints: a66ba63e)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
-com.google.guava:guava:33.7.1-jre (8 constraints: 47ac716c)
+com.google.guava:guava:33.7.1-jre (8 constraints: 49ac7d6c)
 
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 
@@ -70,7 +70,7 @@ org.jetbrains.kotlin:kotlin-metadata-jvm:2.3.0 (1 constraints: 2a111ed1)
 
 org.jetbrains.kotlin:kotlin-stdlib:2.3.0 (3 constraints: 04330b55)
 
-org.jspecify:jspecify:1.0.1 (9 constraints: 549167dc)
+org.jspecify:jspecify:1.0.1 (9 constraints: 5591b7dd)
 
 org.vafer:jdependency:2.14 (1 constraints: fe10f6bf)
 
@@ -124,15 +124,15 @@ com.palantir.safe-logging:logger-slf4j:3.17.0 (1 constraints: 360e9c50)
 
 com.palantir.safe-logging:logger-spi:3.17.0 (2 constraints: 7b1e4eb1)
 
-com.palantir.safe-logging:preconditions:3.17.0 (2 constraints: 971d2c27)
+com.palantir.safe-logging:preconditions:3.18.0 (2 constraints: 981d2f27)
 
-com.palantir.safe-logging:safe-logging:3.18.0 (6 constraints: ed51ab8e)
+com.palantir.safe-logging:safe-logging:3.18.0 (6 constraints: ef51068f)
 
 com.palantir.tracing:tracing:6.40.0 (1 constraints: 3c05533b)
 
 com.palantir.tracing:tracing-api:6.40.0 (1 constraints: d20c2316)
 
-com.palantir.tritium:tritium-registry:0.136.0 (1 constraints: 6c05a640)
+com.palantir.tritium:tritium-registry:0.137.0 (1 constraints: 6d05a940)
 
 com.perforce:p4java:2015.2.1365273 (1 constraints: b7117b2f)
 
