@@ -114,19 +114,17 @@ public class ShadowJarPlugin implements Plugin<Project> {
         NamedDomainObjectProvider<Configuration> shadeTransitively = project.getConfigurations()
                 .register("shadeTransitively", conf -> {
                     conf.setCanBeConsumed(false);
-                    conf.setVisible(false);
                 });
 
         NamedDomainObjectProvider<Configuration> unshaded = project.getConfigurations()
                 .register("unshaded", conf -> {
                     conf.setCanBeConsumed(false);
-                    conf.setVisible(false);
                 });
 
         NamedDomainObjectProvider<Configuration> rejectedFromShading = project.getConfigurations()
                 .register("rejectedFromShading", conf -> {
                     conf.setCanBeConsumed(false);
-                    conf.setVisible(false);
+
                     conf.setCanBeResolved(false);
                 });
 
