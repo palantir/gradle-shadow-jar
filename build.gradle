@@ -95,11 +95,6 @@ javaVersions {
     libraryTarget = 17
 }
 
-tasks.withType(ValidatePlugins).configureEach {
-    // undo once we change gradle-jdks to use built in jdk locations
-    getLauncher().set(provider { (JavaLauncher) null })
-}
-
 jdks {
     daemonTarget = 21
 }
