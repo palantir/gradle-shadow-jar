@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Do not shade safe logger
-  links:
-  - https://github.com/palantir/gradle-shadow-jar/pull/155
