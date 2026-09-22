@@ -109,6 +109,7 @@ public class ShadowJarPlugin implements Plugin<Project> {
         dependOnJarTaskInOrderToTriggerTasksAddingManifestAttributes(project, shadowJarProvider);
     }
 
+    @SuppressWarnings("for-rollout:ReferenceEquality")
     private void setupShadowJarToShadeTheCorrectDependencies(
             Project project, TaskProvider<ShadowJar> shadowJarProvider) {
         NamedDomainObjectProvider<Configuration> shadeTransitively = project.getConfigurations()
