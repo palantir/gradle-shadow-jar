@@ -6,9 +6,9 @@ com.fasterxml.jackson.core:jackson-core:2.22.3 (4 constraints: 94565e07)
 
 com.fasterxml.jackson.core:jackson-databind:2.22.3 (3 constraints: 0c446324)
 
-com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.22.3 (4 constraints: fb5604b6)
+com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.22.3 (4 constraints: fd5630b7)
 
-com.fasterxml.jackson.datatype:jackson-datatype-guava:2.22.3 (2 constraints: 8f36b995)
+com.fasterxml.jackson.datatype:jackson-datatype-guava:2.22.3 (2 constraints: 91364f96)
 
 com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.22.3 (1 constraints: a51a8b21)
 
@@ -26,7 +26,7 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.gradleup.shadow:shadow-gradle-plugin:9.3.1 (1 constraints: 0f052236)
 
-com.palantir.gradle.consistentversions:gradle-consistent-versions:3.20.0 (1 constraints: 3705393b)
+com.palantir.gradle.consistentversions:gradle-consistent-versions:3.21.0 (1 constraints: 38053c3b)
 
 com.palantir.gradle.failure-reports:gradle-failure-reports-common:1.18.0 (1 constraints: f21c3bc2)
 
