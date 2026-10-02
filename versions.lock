@@ -18,7 +18,7 @@ com.google.errorprone:error_prone_annotations:2.50.0 (8 constraints: 9e6b173d)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
-com.google.guava:guava:33.7.2-jre (8 constraints: 4eac3e71)
+com.google.guava:guava:33.7.2-jre (8 constraints: 4fac4371)
 
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 
@@ -126,15 +126,15 @@ com.palantir.safe-logging:logger-slf4j:3.18.0 (1 constraints: 370e9f50)
 
 com.palantir.safe-logging:logger-spi:3.18.0 (2 constraints: 7d1e84b1)
 
-com.palantir.safe-logging:preconditions:3.19.0 (2 constraints: 9a1d6427)
+com.palantir.safe-logging:preconditions:3.20.0 (2 constraints: 921d4d27)
 
-com.palantir.safe-logging:safe-logging:3.20.0 (6 constraints: ed51ad8a)
+com.palantir.safe-logging:safe-logging:3.20.0 (6 constraints: dd51d787)
 
 com.palantir.tracing:tracing:6.41.0 (1 constraints: 3d05563b)
 
 com.palantir.tracing:tracing-api:6.41.0 (1 constraints: d30c2616)
 
-com.palantir.tritium:tritium-registry:0.138.0 (1 constraints: 6e05ac40)
+com.palantir.tritium:tritium-registry:0.139.0 (1 constraints: 6f05af40)
 
 com.perforce:p4java:2015.2.1365273 (1 constraints: b7117b2f)
 
