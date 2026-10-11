@@ -1,7 +1,7 @@
 com.fasterxml.jackson.*:* = 2.22.3
 com.fasterxml.jackson.core:jackson-annotations = 2.22
 com.gradleup.shadow:shadow-gradle-plugin = 9.3.1
-org.immutables:value = 2.12.2
+org.immutables:value = 2.12.3
 com.google.guava:guava = 33.7.2-jre
 
 # Test deps
