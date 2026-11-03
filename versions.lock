@@ -14,11 +14,11 @@ com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.22.4 (1 constraints: a51a
 
 com.fasterxml.woodstox:woodstox-core:7.2.0 (2 constraints: c822fe39)
 
-com.google.errorprone:error_prone_annotations:2.52.0 (8 constraints: a06b313f)
+com.google.errorprone:error_prone_annotations:2.52.0 (8 constraints: a26b373f)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
-com.google.guava:guava:33.8.0-jre (8 constraints: 50aced70)
+com.google.guava:guava:33.8.0-jre (8 constraints: 4facea70)
 
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 
@@ -134,7 +134,7 @@ com.palantir.tracing:tracing:6.42.0 (1 constraints: 3e05593b)
 
 com.palantir.tracing:tracing-api:6.42.0 (1 constraints: d40c2916)
 
-com.palantir.tritium:tritium-registry:0.140.0 (1 constraints: 67059840)
+com.palantir.tritium:tritium-registry:0.141.0 (1 constraints: 68059b40)
 
 com.perforce:p4java:2015.2.1365273 (1 constraints: b7117b2f)
 
